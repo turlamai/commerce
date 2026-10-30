@@ -154,7 +154,7 @@
            "alipay" "notify_test_001"
            (bytes->hex-string (sha256-bytes paid-raw))
            'payment-succeeded "order_test_001" "taskly-pro-lifetime"
-           "subject-1" (money "CNY" 1234) 1793376000))
+           "subject-1" (money "CNY" 1234) 1793334600))
         (journal-accept! storage paid-raw paid #:received-at 1)
         (storage-project-next! storage #:processed-at 2)
         (define refund-raw (response))
