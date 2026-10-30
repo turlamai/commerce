@@ -58,8 +58,17 @@ All modules remain **unapproved for real merchant use until CI and admission**.
   deployed reverse-proxy protection and real environment traffic proof.
   `examples/alipay-service.rkt` provides the loopback-only HTTP process;
   it is not a production deployment playbook by itself.
-- `alipay.trade.refund`, refund status querying, partial-refund semantics,
-  cumulative refund accounting and the full paid/refunded state model.
+- A full-refund request and authenticated confirmation primitive now live
+  in `commerce/alipay/refund`: exact original amount, caller-supplied
+  stable `out_request_no`, RSA2 request signing, and signed
+  `alipay.trade.fastpay.refund.query` status/amount verification.
+  **No refund endpoint or provider refund-event journal writer is enabled**.
+  We deliberately require `REFUND_SUCCESS` rather than mistaking
+  `code=10000` for refund success.
+- Partial refunds and the cumulative refund ledger are **not supported**:
+  current Commerce's binary refunded projection cannot faithfully represent
+  them. Any partial-refund request is rejected. Do not issue a Permit
+  withdrawal from a pending, failed, or partial refund.
 - Full end-to-end integration, operator runbook and accepted merchant
   credential evidence. The `alipay-confirmed-order` struct is explicitly
   a **trusted-service input** until a real signed query adapter enforces it;
