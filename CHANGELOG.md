@@ -48,6 +48,13 @@ All notable changes to Commerce are documented here.
 
 ### Added
 
+- Add bounded Alipay one-time **full refund** RSA2 request and refund-query
+  proof primitives, requiring exact original CNY amount, stable refund ID,
+  authenticated response and explicit `REFUND_SUCCESS`. Reject partial
+  refunds instead of misrepresenting them in the binary refunded model;
+  no automatic journal/Permit withdrawal from unconfirmed refunds.
+
+
 - Start an optional Alipay Vibe Pay Basic Collection Racket adapter slice:
   RSA2-signed notification canonicalization and verification, CNY
   minor-unit conversion, matching merchant/Offer/subject checkout binding
