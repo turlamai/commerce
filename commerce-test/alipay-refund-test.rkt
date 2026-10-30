@@ -8,7 +8,6 @@
          commerce/journal
          commerce/storage
          commerce/storage/sqlite
-         (only-in file/sha1 bytes->hex-string)
          racket/file
          crypto
          crypto/libcrypto
