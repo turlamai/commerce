@@ -11,18 +11,25 @@
  alipay-full-refund-proof-order-id
  alipay-full-refund-proof-trade-id
  alipay-full-refund-proof-request-id
- alipay-full-refund-proof-amount)
+ alipay-full-refund-proof-amount
+ alipay-full-refund-proof-refunded-at
+ journal-alipay-full-refund!)
 
 (require base64
+         file/sha1
          crypto
          crypto/libcrypto
          json
          racket/format
          racket/string
+         racket/date
          "../alipay.rkt"
+         "../journal.rkt"
+         "../storage.rkt"
+         "../provider.rkt"
          "../private/model.rkt")
 
-(struct alipay-full-refund-proof (order-id trade-id request-id amount))
+(struct alipay-full-refund-proof (order-id trade-id request-id amount refunded-at))
 
 (define (fail code)
   (raise (exn:fail:commerce
@@ -118,4 +125,72 @@
                (equal? actual-id request-id)
                (= amount (money-minor-units (alipay-binding-amount binding))))
     (fail 'alipay-refund-mismatch))
-  (alipay-full-refund-proof order-id trade-id actual-id amount))
+  (define refunded-at (hash-ref obj 'gmt_refund_pay #f))
+  (alipay-full-refund-proof order-id trade-id actual-id amount
+                            (and refunded-at (refund-time->epoch refunded-at))))
+
+
+;; Calendar conversion uses GMT+8 explicitly; callbacks or query retries
+;; must never use their arbitrary receive time as event occurrence.
+(define (refund-time->epoch value)
+  (define parts
+    (and (string? value)
+         (regexp-match
+          #px"^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})$"
+          value)))
+  (unless parts (fail 'alipay-refund-time-invalid))
+  (define ns (map string->number (cdr parts)))
+  (define-values (year month day hour minute second) (apply values ns))
+  (unless (and (<= 2000 year 2100) (<= 1 month 12)
+               (<= 1 day 31) (<= 0 hour 23)
+               (<= 0 minute 59) (<= 0 second 59))
+    (fail 'alipay-refund-time-invalid))
+  (define tm (find-seconds second minute hour day month year #f))
+  (define d (seconds->date tm #f))
+  (unless (and (= (date-year d) year) (= (date-month d) month)
+               (= (date-day d) day) (= (date-hour d) hour)
+               (= (date-minute d) minute) (= (date-second d) second))
+    (fail 'alipay-refund-time-invalid))
+  (- tm (* 8 3600)))
+
+;; This does NOT initiate a refund: it durably records a previously executed,
+;; signed, full-refund query with the original payment's bound Offer/subject.
+;; Issuer withdrawal is still an asynchronous projector/outbox consequence.
+(define (journal-alipay-full-refund! storage raw alipay-public-key
+                                    binding request-id
+                                    #:received-at received-at)
+  (unless (commerce-storage? storage)
+    (raise-argument-error 'journal-alipay-full-refund!
+                          "commerce-storage?" storage))
+  (unless (bytes? raw)
+    (raise-argument-error 'journal-alipay-full-refund! "bytes?" raw))
+  (unless (exact-nonnegative-integer? received-at)
+    (raise-argument-error 'journal-alipay-full-refund!
+                          "exact-nonnegative-integer?" received-at))
+  (define proof
+    (verify-alipay-full-refund-query-response
+     raw alipay-public-key binding request-id))
+  (define refunded-at (alipay-full-refund-proof-refunded-at proof))
+  (unless refunded-at
+    (fail 'alipay-refund-time-unknown))
+  (define order
+    (storage-order-ref storage "alipay" (alipay-binding-order-id binding)))
+  (unless (and order (order-projection-paid? order)
+               (equal? (order-projection-offer-id order)
+                       (alipay-binding-offer-id binding))
+               (equal? (order-projection-subject-id order)
+                       (alipay-binding-subject-id binding))
+               (equal? (order-projection-amount order)
+                       (alipay-binding-amount binding)))
+    (fail 'alipay-refund-order-unpaid))
+  (define event
+    (make-verified-payment-event
+     "alipay" (string-append "refund:" request-id)
+     (bytes->hex-string (sha256-bytes raw))
+     'payment-refunded
+     (alipay-binding-order-id binding)
+     (alipay-binding-offer-id binding)
+     (alipay-binding-subject-id binding)
+     (alipay-binding-amount binding)
+     refunded-at))
+  (journal-accept! storage raw event #:received-at received-at))
