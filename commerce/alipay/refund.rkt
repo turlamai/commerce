@@ -16,7 +16,7 @@
  journal-alipay-full-refund!)
 
 (require base64
-         (only-in file/sha1 sha256-bytes)
+         (only-in file/sha1 bytes->hex-string)
          crypto
          crypto/libcrypto
          json
@@ -186,7 +186,7 @@
   (define event
     (make-verified-payment-event
      "alipay" (string-append "refund:" request-id)
-     (bytes->hex-string (sha256-bytes raw))
+     (bytes->hex-string (digest 'sha256 raw))
      'payment-refunded
      (alipay-binding-order-id binding)
      (alipay-binding-offer-id binding)

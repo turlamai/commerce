@@ -8,7 +8,7 @@
          commerce/journal
          commerce/storage
          commerce/storage/sqlite
-         (only-in file/sha1 sha256-bytes)
+         (only-in file/sha1 bytes->hex-string)
          racket/file
          crypto
          crypto/libcrypto
@@ -152,7 +152,7 @@
         (define paid
           (make-verified-payment-event
            "alipay" "notify_test_001"
-           (bytes->hex-string (sha256-bytes paid-raw))
+           (bytes->hex-string (digest 'sha256 paid-raw))
            'payment-succeeded "order_test_001" "taskly-pro-lifetime"
            "subject-1" (money "CNY" 1234) 1793334600))
         (journal-accept! storage paid-raw paid #:received-at 1)
