@@ -6,7 +6,8 @@
 (provide
  alipay-query-client?
  make-alipay-query-client
- fetch-alipay-trade-query-response)
+ fetch-alipay-trade-query-response
+ fetch-alipay-full-refund-query-response)
 
 (require crypto
          crypto/libcrypto
@@ -14,6 +15,7 @@
          racket/date
          racket/port
          "../alipay.rkt"
+         "refund.rkt"
          "../private/model.rkt")
 
 (define sandbox-gateway "https://openapi-sandbox.dl.alipaydev.com/gateway.do")
@@ -141,3 +143,45 @@
   (verify-alipay-trade-query-response
    response (alipay-query-client-alipay-public-key client) binding)
   response)
+
+
+;; Read-only refund verification endpoint. This never creates or repeats a
+;; money-moving alipay.trade.refund request. The operator must use the SAME
+;; persisted refund request id from the original provider refund request.
+(define (fetch-alipay-full-refund-query-response client binding request-id)
+  (unless (alipay-query-client? client)
+    (raise-argument-error 'fetch-alipay-full-refund-query-response
+                          "alipay-query-client?" client))
+  (unless (alipay-binding? binding)
+    (raise-argument-error 'fetch-alipay-full-refund-query-response
+                          "alipay-binding?" binding))
+  (unless (equal? (alipay-binding-app-id binding)
+                  (alipay-query-client-app-id client))
+    (raise-query 'alipay-refund-mismatch))
+  (define params
+    (make-alipay-full-refund-query-parameters
+     binding
+     (alipay-query-client-private-key client)
+     request-id
+     #:timestamp ((alipay-query-client-clock client))))
+  (define gateway
+    (if (eq? (alipay-query-client-environment client) 'production)
+        production-gateway sandbox-gateway))
+  (define-values (status raw)
+    (with-handlers ([exn:fail:commerce? raise]
+                    [exn:fail?
+                     (lambda (_) (raise-query 'alipay-query-unavailable))])
+      ((alipay-query-client-transport client)
+       gateway (form-encode params))))
+  (unless (and (exact-integer? status) (bytes? raw)
+               (<= (bytes-length raw) max-response-bytes))
+    (raise-query 'alipay-query-unavailable))
+  (unless (<= 200 status 299)
+    (raise-query
+     (if (or (= status 408) (= status 429) (<= 500 status 599))
+         'alipay-query-unavailable 'alipay-query-rejected)))
+  (verify-alipay-full-refund-query-response
+   raw
+   (alipay-query-client-alipay-public-key client)
+   binding request-id)
+  raw)
