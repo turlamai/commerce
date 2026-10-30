@@ -4,6 +4,12 @@
          commerce
          commerce/alipay
          commerce/alipay/refund
+         commerce/provider
+         commerce/journal
+         commerce/storage
+         commerce/storage/sqlite
+         (only-in file/sha1 sha256-bytes)
+         racket/file
          crypto
          crypto/libcrypto
          json
@@ -57,7 +63,8 @@
            'trade_no "202610301234567890"
            'out_request_no request-id
            'refund_amount amount
-           'refund_status status)))
+           'refund_status status
+           'gmt_refund_pay "2026-10-30 13:45:00")))
 
 (test-case "RSA2 request signatures cover exact refund amount and request id"
   (define params
@@ -94,6 +101,8 @@
      (response) public binding "refund_001"))
   (check-equal? (alipay-full-refund-proof-amount confirmed) 1234)
   (check-equal? (alipay-full-refund-proof-request-id confirmed) "refund_001")
+  (check-true (exact-nonnegative-integer?
+               (alipay-full-refund-proof-refunded-at confirmed)))
   (check-exn
    (code? 'alipay-refund-pending)
    (lambda ()
@@ -127,3 +136,56 @@
    (lambda ()
      (verify-alipay-full-refund-query-response
       altered public binding "refund_001"))))
+
+
+(test-case "confirmed full refund journals once and projects a withdrawal"
+  (define temp-dir (make-temporary-file "commerce-alipay-refund-~a" 'directory))
+  (dynamic-wind
+   void
+   (lambda ()
+     (define storage
+       (open-sqlite-commerce-storage (build-path temp-dir "commerce.sqlite")))
+     (dynamic-wind
+      void
+      (lambda ()
+        (define paid-raw #"synthetic-authenticated-paid-event")
+        (define paid
+          (make-verified-payment-event
+           "alipay" "notify_test_001"
+           (bytes->hex-string (sha256-bytes paid-raw))
+           'payment-succeeded "order_test_001" "taskly-pro-lifetime"
+           "subject-1" (money "CNY" 1234) 1793376000))
+        (journal-accept! storage paid-raw paid #:received-at 1)
+        (storage-project-next! storage #:processed-at 2)
+        (define refund-raw (response))
+        (define result
+          (journal-alipay-full-refund!
+           storage refund-raw public binding "refund_001"
+           #:received-at 3))
+        (check-eq? (journal-acceptance-disposition result) 'accepted)
+        (define again
+          (journal-alipay-full-refund!
+           storage refund-raw public binding "refund_001"
+           #:received-at 4))
+        (check-eq? (journal-acceptance-disposition again) 'replayed)
+        (storage-project-next! storage #:processed-at 5)
+        (define order (storage-order-ref storage "alipay" "order_test_001"))
+        (check-true (order-projection-refunded? order))
+        (define disallowed
+          (signed-response
+           (hasheq 'code "10000"
+                   'trade_no "202610301234567890"
+                   'out_trade_no "order_test_001"
+                   'out_request_no "refund_001"
+                   'refund_amount "12.34"
+                   'refund_status "REFUND_SUCCESS")))
+        ;; Missing a refund settlement timestamp is NOT authority to use
+        ;; the local receipt time, since that would break replay identity.
+        (check-exn
+         (code? 'alipay-refund-time-unknown)
+         (lambda ()
+           (journal-alipay-full-refund!
+            storage disallowed public binding "refund_001"
+            #:received-at 6))))
+      (lambda () (storage-close storage))))
+   (lambda () (delete-directory/files temp-dir))))
