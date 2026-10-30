@@ -151,7 +151,9 @@
         (define paid
           (make-verified-payment-event
            "alipay" "notify_test_001"
-           (bytes->hex-string (digest 'sha256 paid-raw))
+           (bytes->hex-string
+             (parameterize ([crypto-factories (list libcrypto-factory)])
+               (digest 'sha256 paid-raw)))
            'payment-succeeded "order_test_001" "taskly-pro-lifetime"
            "subject-1" (money "CNY" 1234) 1793334600))
         (journal-accept! storage paid-raw paid #:received-at 1)

@@ -185,7 +185,9 @@
   (define event
     (make-verified-payment-event
      "alipay" (string-append "refund:" request-id)
-     (bytes->hex-string (digest 'sha256 raw))
+     (bytes->hex-string
+      (parameterize ([crypto-factories (list libcrypto-factory)])
+        (digest 'sha256 raw)))
      'payment-refunded
      (alipay-binding-order-id binding)
      (alipay-binding-offer-id binding)
