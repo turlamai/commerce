@@ -56,14 +56,15 @@
                   #:request-id [request-id "refund_001"]
                   #:order-id [order-id "order_test_001"]
                   #:code [code "10000"])
-  (signed-response
-   (hasheq 'code code
-           'out_trade_no order-id
-           'trade_no "202610301234567890"
-           'out_request_no request-id
-           'refund_amount amount
-           'refund_status status
-           'gmt_refund_pay "2026-10-30 13:45:00")))
+  (define fields
+    (hasheq 'code code
+            'out_trade_no order-id
+            'trade_no "202610301234567890"
+            'out_request_no request-id
+            'refund_amount amount
+            'refund_status status
+            'gmt_refund_pay "2026-10-30 13:45:00"))
+  (signed-response (if status fields (hash-remove fields 'refund_status))))
 
 (test-case "RSA2 request signatures cover exact refund amount and request id"
   (define params
@@ -100,8 +101,17 @@
      (response) public binding "refund_001"))
   (check-equal? (alipay-full-refund-proof-amount confirmed) 1234)
   (check-equal? (alipay-full-refund-proof-request-id confirmed) "refund_001")
+  ;; Settlement is GMT+8, independent of host timezone.
+  (check-equal? (alipay-full-refund-proof-refunded-at confirmed) 1793339100)
   (check-true (exact-nonnegative-integer?
                (alipay-full-refund-proof-refunded-at confirmed)))
+  ;; The gateway may omit refund_status entirely; code 10000 alone
+  ;; must never authorize a Commerce withdrawal or Permit revocation.
+  (check-exn
+   (code? 'alipay-refund-pending)
+   (lambda ()
+     (verify-alipay-full-refund-query-response
+      (response #:status #f) public binding "refund_001")))
   (check-exn
    (code? 'alipay-refund-pending)
    (lambda ()
