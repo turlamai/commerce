@@ -16,7 +16,7 @@
  journal-alipay-full-refund!)
 
 (require base64
-         file/sha1
+         (only-in file/sha1 sha256-bytes)
          crypto
          crypto/libcrypto
          json
