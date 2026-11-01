@@ -10,7 +10,9 @@
    (lambda ()
      (define db-path (build-path dir "replay.sqlite"))
      (define first
-       (make-sqlite-hosted-replay-claimer db-path #:now (lambda () 1000)))
+       (begin
+         (initialize-sqlite-hosted-replay-store! db-path)
+         (make-sqlite-hosted-replay-claimer db-path #:now (lambda () 1000))))
      ;; A second closure uses a separate connection for each claim.
      (define second
        (make-sqlite-hosted-replay-claimer db-path #:now (lambda () 1000)))
@@ -31,7 +33,9 @@
    (lambda ()
      (define path (build-path dir "nonces.sqlite"))
      (define at-early
-       (make-sqlite-hosted-replay-claimer path #:now (lambda () 1299)))
+       (begin
+         (initialize-sqlite-hosted-replay-store! path)
+         (make-sqlite-hosted-replay-claimer path #:now (lambda () 1299))))
      (define at-expiry
        (make-sqlite-hosted-replay-claimer path #:now (lambda () 1301)))
      (check-true (at-early "publy" "fresh_nonce_value_001" 1301))
@@ -48,13 +52,20 @@
    void
    (lambda ()
      (define path (build-path dir "nonces.sqlite"))
-     (define claim (make-sqlite-hosted-replay-claimer
-                    path #:now (lambda () 1000)))
+     (define claim (begin
+                     (initialize-sqlite-hosted-replay-store! path)
+                     (make-sqlite-hosted-replay-claimer
+                      path #:now (lambda () 1000))))
      (check-true (claim "publy" "nonce_initial_12345" 1301))
      ;; A vanished live database must never silently recreate an empty store:
      ;; that would permit replay while the signed timestamp is still valid.
      (delete-file path)
-     (check-false (claim "publy" "nonce_after_failure" 1301)))
+     (check-false (claim "publy" "nonce_after_failure" 1301))
+     (check-exn
+      exn:fail?
+      (lambda ()
+        (make-sqlite-hosted-replay-claimer path
+                                           #:now (lambda () 1000)))))
    (lambda ()
      (when (directory-exists? dir)
        (delete-directory/files dir)))))
