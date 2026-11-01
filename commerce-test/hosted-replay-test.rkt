@@ -11,11 +11,12 @@
      (define db-path (build-path dir "replay.sqlite"))
      (define first
        (make-sqlite-hosted-replay-claimer db-path #:now (lambda () 1000)))
-     (check-true (first "publy-backend" "nonce_unique_123456" 1301))
-     (check-false (first "publy-backend" "nonce_unique_123456" 1301))
-     ;; A second connection/closure simulates a restarted edge process.
+     ;; A second closure uses a separate connection for each claim.
      (define second
        (make-sqlite-hosted-replay-claimer db-path #:now (lambda () 1000)))
+     (check-true (first "publy-backend" "nonce_unique_123456" 1301))
+     (check-false (first "publy-backend" "nonce_unique_123456" 1301))
+     ;; Reopening simulates a restarted edge process.
      (check-false (second "publy-backend" "nonce_unique_123456" 1301))
      (check-true (second "movebit-backend" "nonce_unique_123456" 1301))
      (check-false (second "movebit-backend" "nonce_unique_123456" 1301))
@@ -50,8 +51,9 @@
      (define claim (make-sqlite-hosted-replay-claimer
                     path #:now (lambda () 1000)))
      (check-true (claim "publy" "nonce_initial_12345" 1301))
-     ;; Removing the database directory makes subsequent connects fail.
-     (delete-directory/files dir)
+     ;; A vanished live database must never silently recreate an empty store:
+     ;; that would permit replay while the signed timestamp is still valid.
+     (delete-file path)
      (check-false (claim "publy" "nonce_after_failure" 1301)))
    (lambda ()
      (when (directory-exists? dir)
