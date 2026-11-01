@@ -38,11 +38,11 @@
   ;; Literal #t is required. Denial precedes any storage/existence lookup.
   (unless (eq? #t (authorize issuer subject-type subject-id offer-id))
     (error 'current-entitlement-snapshot "access denied"))
-  (define lineage
-    (storage-lineage-ref storage
-                         #:issuer issuer #:subject-type subject-type
-                         #:subject-id subject-id #:offer-id offer-id))
-  (cond
+  (let ([lineage
+         (storage-lineage-ref storage
+                              #:issuer issuer #:subject-type subject-type
+                              #:subject-id subject-id #:offer-id offer-id)])
+    (cond
     [(not lineage)
      (hasheq 'status
              (cond [expected-entitlement-id "lineage-mismatch"]
@@ -77,4 +77,4 @@
              'action (symbol->string action)
              'policy_id (entitlement-revision-policy-id revision)
              'policy_version (entitlement-revision-policy-version revision)
-             'recorded_at (entitlement-revision-recorded-at revision)))]))]))
+             'recorded_at (entitlement-revision-recorded-at revision)))]))])))
