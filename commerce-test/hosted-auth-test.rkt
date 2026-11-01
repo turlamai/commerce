@@ -6,6 +6,8 @@
 (define other-key (make-bytes 32 42))
 
 (define (sign #:key [key service-key]
+              #:service [service "publy-backend"]
+              #:method [method "POST"]
               #:nonce [nonce "fresh_nonce_value_001"]
               #:path [path "/v1/entitlement"]
               #:body [body #"{\"subject\":\"customer-a\"}"]
@@ -13,8 +15,8 @@
               #:product [product "taskly"]
               #:timestamp [timestamp 1000])
   (hosted-request-mac
-   key #:service-id "publy-backend"
-   #:method "POST" #:path path
+   key #:service-id service
+   #:method method #:path path
    #:timestamp timestamp #:nonce nonce
    #:issuer "com.turinglambdaai"
    #:subject-type "account" #:subject-id subject
@@ -22,6 +24,8 @@
    #:body body))
 
 (define (verify #:key [key service-key]
+                #:service [service "publy-backend"]
+                #:method [method "POST"]
                 #:mac [mac (sign)]
                 #:nonce [nonce "fresh_nonce_value_001"]
                 #:path [path "/v1/entitlement"]
@@ -42,7 +46,7 @@
                         (equal? prod "taskly")))]
                 #:claim [claim (lambda (_id _nonce _expires) #t)])
   (verify-hosted-service-request
-   #:service-id "publy-backend" #:method "POST" #:path path
+   #:service-id service #:method method #:path path
    #:timestamp timestamp #:nonce nonce
    #:issuer "com.turinglambdaai" #:subject-type "account"
    #:subject-id subject #:offer-id "taskly-pro-lifetime"
@@ -66,6 +70,11 @@
 (test-case "MAC is bound to method, route, body, subject and product"
   (check-false (verify #:body #"changed"))
   (check-false (verify #:path "/v1/other"))
+  (check-false (verify #:method "GET"))
+  (check-false (verify #:service "other-backend"))
+  (check-false
+   (verify #:service "other-backend"
+           #:mac (sign #:service "other-backend")))
   (check-false (verify #:subject "customer-b"))
   (check-false (verify #:product "movebit"))
   (check-false (verify #:key other-key))
