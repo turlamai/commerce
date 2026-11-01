@@ -139,6 +139,28 @@ WHERE issuance_outbox_id = ?
 SQL
   )
 
+;; A refund is unresolved until its exact authenticated journal event has
+;; produced an issued withdrawal revision. This also detects journaled
+;; refunds not yet projected into outbox work.
+(define select-unresolved-refund-sql
+  #<<SQL
+SELECT EXISTS (
+  SELECT 1
+  FROM commerce_event_journal AS j
+  WHERE j.subject_id = ? AND j.offer_id = ?
+    AND j.event_kind = 'payment-refunded'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM commerce_issuance_outbox AS o
+      JOIN commerce_entitlement_revision AS r
+        ON r.issuance_outbox_id = o.id
+      WHERE o.source_journal_sequence = j.sequence
+        AND o.action = 'withdraw'
+    )
+)
+SQL
+  )
+
 (define select-readiness-sql
   #<<SQL
 SELECT
@@ -886,7 +908,17 @@ SQL
     (query-value connection "PRAGMA journal_mode = WAL")
     (query-exec connection "PRAGMA synchronous = FULL")
     (query-exec connection "PRAGMA foreign_keys = ON")
-    (initialize-schema! connection))
+    (initialize-schema! connection)
+    ;; Existing v7 stores also need the indexes: no data/schema migration
+    ;; and no full event-journal scan on each hosted read.
+    (query-exec
+     connection
+     "CREATE INDEX IF NOT EXISTS commerce_refund_journal_scope
+      ON commerce_event_journal(subject_id, offer_id, event_kind)")
+    (query-exec
+     connection
+     "CREATE INDEX IF NOT EXISTS commerce_outbox_source_kind
+      ON commerce_issuance_outbox(source_journal_sequence, action)"))
 
   (define closed? (box #f))
 
@@ -1661,6 +1693,11 @@ SQL
     (row->revision
      (query-maybe-row connection select-latest-revision-sql entitlement-id)))
 
+  (define (unresolved-refund subject-id offer-id)
+    (check-open)
+    (not (zero? (query-value connection select-unresolved-refund-sql
+                             subject-id offer-id))))
+
   (define (close)
     (unless (unbox closed?)
       (disconnect connection)
@@ -1675,4 +1712,4 @@ SQL
    readiness-snapshot retire-expired-claims
    create-checkout-binding! checkout-binding-ref
    append-audit! audit-scan reissue-claim! claim-record-ref
-   close))
+   unresolved-refund close))

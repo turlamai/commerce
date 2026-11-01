@@ -126,6 +126,7 @@
  storage-append-audit!
  storage-audit-scan
  storage-reissue-claim!
+ storage-unresolved-refund?
  storage-close)
 
 (require racket/list
@@ -594,6 +595,19 @@
     (raise-argument-error
      'storage-claim-record-ref "exact-nonnegative-integer?" claim-id))
   ((commerce-storage-claim-record-lookup storage) claim-id))
+
+;; An authenticated refund journal event must be reflected in a durable
+;; signed withdrawal revision before a hosted service can serve an older grant.
+;; The caller must also enforce its product/subject authorization boundary.
+(define (storage-unresolved-refund? storage subject-id offer-id)
+  (check-storage 'storage-unresolved-refund? storage)
+  (unless (opaque-id? subject-id)
+    (raise-argument-error 'storage-unresolved-refund?
+                          "non-empty opaque subject identifier" subject-id))
+  (unless (opaque-id? offer-id)
+    (raise-argument-error 'storage-unresolved-refund?
+                          "non-empty opaque Offer identifier" offer-id))
+  ((commerce-storage-unresolved-refund storage) subject-id offer-id))
 
 (define (storage-close storage)
   (check-storage 'storage-close storage)
