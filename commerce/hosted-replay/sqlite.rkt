@@ -6,14 +6,14 @@
 
 (require db)
 
-(define (connection-at path)
+(define (connection-at path mode)
   (sqlite3-connect #:database path
-                   #:mode 'create
+                   #:mode mode
                    #:busy-retry-delay 0.05
                    #:busy-retry-limit 40))
 
-(define (with-connection path callback)
-  (define connection (connection-at path))
+(define (with-connection path callback #:mode [mode 'read/write])
+  (define connection (connection-at path mode))
   (dynamic-wind void (lambda () (callback connection))
                 (lambda () (disconnect connection))))
 
@@ -41,7 +41,8 @@
      (query-exec
       connection
       "CREATE INDEX IF NOT EXISTS hosted_service_nonce_expiry
-       ON hosted_service_nonce(expires_at)")))
+       ON hosted_service_nonce(expires_at)"))
+   #:mode 'create)
   ;; Return exactly #t for one atomic, durable first claim. SQLITE's UNIQUE
   ;; constraint serializes races between independent processes. Every claim
   ;; gets its own connection, so callbacks are safe across Racket threads.
