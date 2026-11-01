@@ -7,6 +7,7 @@
 ;; or a hard-coded MoveBit branch in the service.
 
 (require commerce
+         commerce/provider
          commerce/permit
          permit/issuer
          (only-in permit verify-credential edition-entitled?
@@ -179,3 +180,36 @@
      (check-true
       (credential-usable? verified #:at "2026-10-23T00:00:00Z")))
    (lambda () (delete-directory/files dir))))
+
+;; Payment-event plumbing is exercised with the same mock provider interface
+;; used by Commerce's first-purchase tutorial. This is a deterministic test
+;; fixture, not a provider-authenticated external webhook or live checkout.
+(test-case "mock purchase produces one MoveBit rights intent, duplicate none"
+  (define paid
+    (make-verified-payment-event
+     "mock" "event-movebit-fixture-paid"
+     (make-string 64 (integer->char 97))
+     'payment-succeeded
+     "fixture-movebit-order" fixture-offer-id "fixture-subject"
+     (money "USD" 1234)
+     1792108800))
+  (define-values (paid-state intents)
+    (ingest-payment-event (empty-commerce-state) paid))
+  (check-equal? (length intents) 1)
+  (define one-intent (car intents))
+  (check-eq? (rights-intent-action one-intent) 'grant)
+  (check-equal? (rights-intent-offer-id one-intent) fixture-offer-id)
+  (check-equal? (rights-intent-subject-id one-intent) "fixture-subject")
+  (define snapshot
+    (prepare-permit-snapshot
+     catalog one-intent
+     #:issuer "movebit-ci-fixture"
+     #:credential-id "fixture-movebit-payment-credential-r0"
+     #:entitlement-id "fixture-movebit-payment-entitlement"
+     #:issued-at "2026-10-21T00:00:00Z"))
+  (check-equal? (hash-ref (car (hash-ref (permit-snapshot-request-payload snapshot)
+                                         'grants)) 'edition)
+                "pro")
+  (define-values (_ replay-intents)
+    (ingest-payment-event paid-state paid))
+  (check-equal? replay-intents '()))
