@@ -118,9 +118,9 @@
        (dynamic-wind
         void
         (lambda ()
-          (query-exec conn "PRAGMA foreign_keys = ON")
           (define payload
             (if (= revision 0) #"{\"revision\":0}" #"{\"revision\":1}"))
+          (query-exec conn "PRAGMA foreign_keys = ON")
           (query-exec
            conn
            "INSERT INTO commerce_entitlement_revision
