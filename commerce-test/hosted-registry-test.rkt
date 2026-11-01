@@ -41,15 +41,15 @@
      (write-bytes-file key-file (make-bytes 32 44))
      (write-registry config (list (make-service key-file)))
      (let ([registry (read-hosted-service-registry config)])
+       (define (allow id subject offer product)
+         (hosted-service-registry-allow-scope
+          registry id "com.turinglambdaai" "account"
+          subject offer product))
        (check-equal?
         (hosted-service-registry-resolve-key registry "publy-backend")
         (make-bytes 32 44))
        (check-false
         (hosted-service-registry-resolve-key registry "unknown"))
-       (define (allow id subject offer product)
-         (hosted-service-registry-allow-scope
-          registry id "com.turinglambdaai" "account"
-          subject offer product))
        (check-true (allow "publy-backend" "account-a" "publy-pro" "publy"))
        (check-false (allow "publy-backend" "account-b" "publy-pro" "publy"))
        (check-false (allow "publy-backend" "account-a" "publy-pro" "taskly"))
