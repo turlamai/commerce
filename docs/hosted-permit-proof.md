@@ -40,7 +40,23 @@ edition, features, quotas, subscription/business policy and current
 high-water mark. It is **not** evidence of merchant admission or a guarantee
 that a disconnected copy has received the latest withdrawal.
 
-Other outcomes include `invalid-proof`, `proof-unavailable`,
+Refund safety: if the durable event journal contains an authenticated
+`payment-refunded` event for the requested subject and Offer, but that
+exact journal event has not yet produced an issued withdrawal revision,
+Commerce returns `refund-pending` and denies the old signed grant. This
+includes the interval **before the projector creates outbox work** and the
+interval **after projection but before the issuer completes signing**.
+An unresolved or blocked refund can therefore suspend access until reviewed.
+This intentionally favors denial over issuing a stale commercial right.
+
+This is not yet an atomic read-only transaction across the entire request:
+a refund can still commit concurrently after the final check. Production
+integration needs a transaction-consistent read and a durable service-side
+high-water mark, rather than interpreting this guard as perfect real-time
+revocation. The shared writable SQLite database remains an unresolved
+signing-authority threat (#10).
+
+Other outcomes include `refund-pending`, `invalid-proof`, `proof-unavailable`,
 `not-usable`, `stale-revision`, `lineage-mismatch`, or the prior
 non-authoritative ledger statuses (including `recorded-withdrawal`).
 All mean **no product access granted**.
