@@ -42,7 +42,9 @@
           #:subject-type 'account
           #:grants (list (make-permit-grant-policy
                           #:products '("taskly")
-                          #:edition "pro"))))))
+                          #:edition "pro"))
+          #:constraints (make-permit-constraints-policy
+                         #:use-expires-at "2026-10-19T00:00:00Z")))))
 
 (define (worker [now 100] [issued-at "2026-10-17T03:00:00Z"])
   (make-issuance-worker
@@ -56,7 +58,7 @@
    "mock" id (bytes->hex-string (sha256-bytes raw))
    kind "order-001" "taskly-pro-lifetime" "customer-001" usd-29 at))
 
-(test-case "signed Permit evidence enforces subject, product, trust and refund"
+(test-case "signed Permit evidence enforces subject, product, trust, time and refund"
   (define dir (make-temporary-file "commerce-hosted-proof-~a" 'directory))
   (dynamic-wind
    void
@@ -67,6 +69,22 @@
       void
       (lambda ()
         (define paid #"authenticated-payment")
+        (define refunded #"authenticated-refund")
+        (define (proof #:subject [subject "customer-001"]
+                       #:product [product "taskly"]
+                       #:store [store trust]
+                       #:authorize [authorize
+                                    (lambda (_issuer _type _id _offer _product) #t)]
+                       #:minimum [minimum #f]
+                       #:lineage [lineage #f]
+                       #:at [at "2026-10-18T00:00:00Z"])
+          (current-verified-entitlement-proof
+           storage #:issuer issuer-name #:subject-type "account"
+           #:subject-id subject #:offer-id "taskly-pro-lifetime"
+           #:product-id product #:authorize authorize
+           #:trust-store store #:at at
+           #:minimum-revision minimum
+           #:expected-entitlement-id lineage))
         (journal-accept! storage paid
                          (event paid "paid-001" 'payment-succeeded 98)
                          #:received-at 99)
@@ -74,63 +92,49 @@
         (check-eq? (issuance-result-disposition
                     (process-issuance-work! (worker) storage))
                    'completed)
-
-        (define (proof #:subject [subject "customer-001"]
-                       #:product [product "taskly"]
-                       #:store [store trust]
-                       #:authorize [authorize (lambda (_issuer _type _id _offer _product) #t)]
-                       #:minimum [minimum #f]
-                       #:lineage [lineage #f])
-          (current-verified-entitlement-proof
-           storage #:issuer issuer-name #:subject-type "account"
-           #:subject-id subject #:offer-id "taskly-pro-lifetime"
-           #:product-id product #:authorize authorize
-           #:trust-store store #:at "2026-10-18T00:00:00Z"
-           #:minimum-revision minimum
-           #:expected-entitlement-id lineage))
-
-        (define valid (proof))
-        (check-equal? (hash-ref valid 'status) "verified-proof")
-        (check-equal? (hash-ref valid 'revision) 0)
-        (check-true (hash? (hash-ref valid 'credential)))
-        (define entitlement-id (hash-ref valid 'entitlement_id))
-        (check-equal? (hash-ref (proof #:lineage entitlement-id) 'status)
-                      "verified-proof")
-        (check-equal? (proof #:minimum 1 #:lineage entitlement-id)
-                      (hasheq 'status "stale-revision"))
-        (check-equal? (hash-ref (proof #:product "movebit") 'status)
-                      "invalid-proof")
-        (check-exn exn:fail?
-                   (lambda ()
-                     (proof #:product "movebit"
-                            #:authorize
-                            (lambda (_issuer _type _id _offer product)
-                              (equal? product "taskly")))))
-        (check-equal? (hash-ref (proof #:store (make-trust wrong-public))
-                                'status)
-                      "invalid-proof")
-        (check-equal? (hash-ref (proof #:store (make-trust public-key "revoked"))
-                                'status)
-                      "invalid-proof")
-        (check-exn exn:fail?
-                   (lambda ()
-                     (proof #:subject "other-account"
-                            #:authorize
-                            (lambda (_issuer _type id _offer product)
-                              (and (equal? id "customer-001")
-                                   (equal? product "taskly"))))))
-
-        (define refunded #"authenticated-refund")
-        (journal-accept! storage refunded
-                         (event refunded "refund-001" 'payment-refunded 110)
-                         #:received-at 111)
-        (storage-project-next! storage #:processed-at 112)
-        (check-eq? (issuance-result-disposition
-                    (process-issuance-work! (worker 130 "2026-10-18T03:00:00Z") storage))
-                   'completed)
-        (check-equal? (hash-ref
-                       (proof #:minimum 1 #:lineage entitlement-id)
-                       'status)
-                      "recorded-withdrawal"))
+        (let* ([valid (proof)]
+               [entitlement-id (hash-ref valid 'entitlement_id)])
+          (check-equal? (hash-ref valid 'status) "verified-proof")
+          (check-equal? (hash-ref valid 'revision) 0)
+          (check-true (hash? (hash-ref valid 'credential)))
+          (check-equal? (hash-ref (proof #:lineage entitlement-id) 'status)
+                        "verified-proof")
+          (check-equal? (proof #:minimum 1 #:lineage entitlement-id)
+                        (hasheq 'status "stale-revision"))
+          (check-equal? (hash-ref (proof #:product "movebit") 'status)
+                        "invalid-proof")
+          (check-exn exn:fail?
+                     (lambda ()
+                       (proof #:product "movebit" #:authorize
+                              (lambda (_issuer _type _id _offer product)
+                                (equal? product "taskly")))))
+          (check-equal?
+           (hash-ref (proof #:store (make-trust wrong-public)) 'status)
+           "invalid-proof")
+          (check-equal?
+           (hash-ref (proof #:store (make-trust public-key "revoked")) 'status)
+           "invalid-proof")
+          (check-equal?
+           (hash-ref (proof #:at "2026-10-20T00:00:00Z") 'status)
+           "not-usable")
+          (check-exn exn:fail?
+                     (lambda ()
+                       (proof #:subject "other-account"
+                              #:authorize
+                              (lambda (_issuer _type id _offer product)
+                                (and (equal? id "customer-001")
+                                     (equal? product "taskly"))))))
+          (journal-accept! storage refunded
+                           (event refunded "refund-001" 'payment-refunded 110)
+                           #:received-at 111)
+          (storage-project-next! storage #:processed-at 112)
+          (check-eq?
+           (issuance-result-disposition
+            (process-issuance-work!
+             (worker 130 "2026-10-18T03:00:00Z") storage))
+           'completed)
+          (check-equal?
+           (hash-ref (proof #:minimum 1 #:lineage entitlement-id) 'status)
+           "recorded-withdrawal")))
       (lambda () (storage-close storage))))
    (lambda () (delete-directory/files dir))))
