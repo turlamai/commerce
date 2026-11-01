@@ -92,6 +92,68 @@ distribution/rotation, ingress limits and network allowlists outside the
 library. No production product credential, paid Offer or private signing key
 belongs in the edge HTTP process.
 
+## Explicit service registry and local start
+
+`commerce/hosted-registry` loads a **strict, versioned registry** whose
+entries contain an exact service identifier, an **absolute path** to a
+separately managed 32–128-byte raw HMAC key file, and at least one explicit
+(issuer, subject type, subject ID, Offer, product) tuple. Unknown keys,
+duplicate service IDs, inline secret fields, malformed config and wildcard
+authorization are rejected; registry scopes are exact-value matches only.
+Example for a deliberately **single-account test service**:
+
+```json
+{
+  "version": 1,
+  "services": [{
+    "id": "publy-test",
+    "key_file": "/secure/commerce/publy-test.hmac",
+    "scopes": [{
+      "issuer": "com.example",
+      "subject_type": "account",
+      "subject_id": "test-account",
+      "offer_id": "example-pro",
+      "product_id": "example"
+    }]
+  }]
+}
+```
+
+This registry is a **pilot/provisioning example**, not scalable product
+customer identity management. A production hosted service must authenticate
+its own users and map them to exact Commerce subjects using a trusted,
+auditable binding store. Never add a wildcard subject or a catch-all Offer.
+
+`examples/hosted-proof-service.rkt` wires the actual loopback listener to
+this file-backed registry, existing Commerce ledger, a Permit public-key
+trust store, and pre-provisioned durable replay database. Supply environment
+variables:
+
+```
+COMMERCE_HOSTED_DB_PATH=/secure/commerce/ledger.sqlite
+COMMERCE_HOSTED_NONCE_DB_PATH=/secure/commerce/s2s-nonces.sqlite
+COMMERCE_HOSTED_REGISTRY_PATH=/secure/commerce/services.json
+COMMERCE_HOSTED_TRUST_STORE_PATH=/secure/commerce/permit-trust.json
+COMMERCE_HOSTED_PORT=8082
+```
+
+Provision the replay database **explicitly before first use**, for example
+in a trusted local Racket operator session:
+
+```racket
+(require commerce/hosted-replay/sqlite)
+(initialize-sqlite-hosted-replay-store!
+ "/secure/commerce/s2s-nonces.sqlite")
+```
+
+Use an OS service account with narrowly scoped filesystem rights and
+run `racket examples/hosted-proof-service.rkt` from the installed checkout.
+The entrypoint binds **127.0.0.1 only**. Use a TLS/mTLS reverse proxy with
+network allowlists to expose it to a known trusted internal backend, never
+directly to the public Internet. Rotate keys through controlled registry
+re-provisioning and an audited service restart; keep keys out of logs and
+the Git repository. Do not let the HTTP edge access Permit private keys.
+
 This is the transport integration layer, not evidence of the full hosted
 service being production-ready. Follow-ups include a managed service registry,
 durable authenticated consumer high-water marks, transaction-consistent
