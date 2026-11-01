@@ -139,6 +139,28 @@ WHERE issuance_outbox_id = ?
 SQL
   )
 
+;; A refund is unresolved until its exact authenticated journal event has
+;; produced an issued withdrawal revision. This also detects journaled
+;; refunds not yet projected into outbox work.
+(define select-unresolved-refund-sql
+  #<<SQL
+SELECT EXISTS (
+  SELECT 1
+  FROM commerce_event_journal AS j
+  WHERE j.subject_id = ? AND j.offer_id = ?
+    AND j.event_kind = 'payment-refunded'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM commerce_issuance_outbox AS o
+      JOIN commerce_entitlement_revision AS r
+        ON r.issuance_outbox_id = o.id
+      WHERE o.source_journal_sequence = j.sequence
+        AND o.action = 'withdraw'
+    )
+)
+SQL
+  )
+
 (define select-readiness-sql
   #<<SQL
 SELECT
@@ -1661,6 +1683,11 @@ SQL
     (row->revision
      (query-maybe-row connection select-latest-revision-sql entitlement-id)))
 
+  (define (unresolved-refund subject-id offer-id)
+    (check-open)
+    (not (zero? (query-value connection select-unresolved-refund-sql
+                             subject-id offer-id))))
+
   (define (close)
     (unless (unbox closed?)
       (disconnect connection)
@@ -1675,4 +1702,4 @@ SQL
    readiness-snapshot retire-expired-claims
    create-checkout-binding! checkout-binding-ref
    append-audit! audit-scan reissue-claim! claim-record-ref
-   close))
+   unresolved-refund close))
