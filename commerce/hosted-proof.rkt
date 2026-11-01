@@ -124,11 +124,19 @@
   (unless (and (string? at) (<= 1 (string-length at) 64))
     (raise-argument-error 'current-verified-entitlement-proof
                           "RFC 3339 UTC time string" at))
-  ;; Denial in current-entitlement-snapshot happens before the ledger lookup.
+  ;; The product identifier must be authorized too. Bind it into the
+  ;; existing four-field ledger reader's callback before any storage access.
+  (unless (and (procedure? authorize)
+               (procedure-arity-includes? authorize 5))
+    (raise-argument-error 'current-verified-entitlement-proof
+                          "procedure accepting issuer, subject-type, subject-id, offer-id, product-id"
+                          authorize))
+  (define (authorize-scope i t s o)
+    (authorize i t s o product-id))
   (define snapshot
     (current-entitlement-snapshot
      storage #:issuer issuer #:subject-type subject-type #:subject-id subject-id
-     #:offer-id offer-id #:authorize authorize
+     #:offer-id offer-id #:authorize authorize-scope
      #:minimum-revision minimum #:expected-entitlement-id expected-id))
   (if (equal? (hash-ref snapshot 'status) "recorded-grant")
       (verify-snapshot-record storage snapshot issuer subject-type subject-id
