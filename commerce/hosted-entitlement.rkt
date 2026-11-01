@@ -3,6 +3,8 @@
 ;; Server-to-server read boundary for one exact subject and Offer.
 ;; Not an HTTP route: callers must authenticate and authorize their service
 ;; identity before invoking this function. No client-provided paid flag.
+;; Recorded revision metadata is never proof of a cryptographically valid
+;; credential or the current effective permission of a service account.
 (provide current-entitlement-snapshot)
 
 (require "storage.rkt")
@@ -36,8 +38,8 @@
           [else
            (define action (entitlement-revision-action revision))
            (hasheq 'status
-                   (cond [(eq? action 'grant) "granted"]
-                         [(eq? action 'withdraw) "withdrawn"]
+                   (cond [(eq? action 'grant) "recorded-grant"]
+                         [(eq? action 'withdraw) "recorded-withdrawal"]
                          [else "unknown"])
                    'entitlement_id (entitlement-lineage-entitlement-id lineage)
                    'revision (entitlement-revision-revision revision)
