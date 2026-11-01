@@ -124,15 +124,30 @@
                               (lambda (_issuer _type id _offer product)
                                 (and (equal? id "customer-001")
                                      (equal? product "taskly"))))))
+          (check-false (storage-unresolved-refund?
+                        storage "customer-001" "taskly-pro-lifetime"))
           (journal-accept! storage refunded
                            (event refunded "refund-001" 'payment-refunded 110)
                            #:received-at 111)
+          ;; Journal-first guarantee: no signed proof escapes after a refund
+          ;; was accepted, even if projection and signing are still delayed.
+          (check-true (storage-unresolved-refund?
+                       storage "customer-001" "taskly-pro-lifetime"))
+          (check-equal?
+           (hash-ref (proof #:minimum 0 #:lineage entitlement-id) 'status)
+           "refund-pending")
           (storage-project-next! storage #:processed-at 112)
+          (check-equal?
+           (hash-ref (proof #:minimum 0 #:lineage entitlement-id) 'status)
+           "refund-pending")
           (check-eq?
            (issuance-result-disposition
             (process-issuance-work!
              (worker 130 "2026-10-18T03:00:00Z") storage))
            'completed)
+          (check-false
+           (storage-unresolved-refund? storage "customer-001"
+                                       "taskly-pro-lifetime"))
           (check-equal?
            (hash-ref (proof #:minimum 1 #:lineage entitlement-id) 'status)
            "recorded-withdrawal")))
