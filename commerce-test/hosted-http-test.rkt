@@ -42,7 +42,7 @@
        (open-sqlite-commerce-storage (build-path dir "commerce.sqlite")))
      (define nonce-db (build-path dir "nonces.sqlite"))
      (initialize-sqlite-hosted-replay-store! nonce-db)
-     (define endpoint
+     (let ([endpoint
        (make-hosted-proof-http-endpoint
         #:storage storage #:trust-store trust
         #:resolve-key
@@ -59,9 +59,9 @@
         #:claim-once!
         (make-sqlite-hosted-replay-claimer
          nonce-db #:now (lambda () 1000))
-        #:clock (lambda () 1000)))
-     (dynamic-wind void (lambda () (proc endpoint))
-                   (lambda () (storage-close storage))))
+        #:clock (lambda () 1000))])
+       (dynamic-wind void (lambda () (proc endpoint))
+                     (lambda () (storage-close storage)))))
    (lambda () (delete-directory/files dir))))
 
 (define (submit endpoint
@@ -96,9 +96,9 @@
   (with-endpoint
    (lambda (endpoint)
      (define-values (status first) (submit endpoint))
+     (define-values (second-status second) (submit endpoint))
      (check-equal? status 200)
      (check-equal? (hash-ref first 'status) "absent")
-     (define-values (second-status second) (submit endpoint))
      (check-equal? second-status 401)
      (check-equal? (hash-ref second 'error) "unauthenticated"))))
 
@@ -106,39 +106,37 @@
   (with-endpoint
    (lambda (endpoint)
      (define-values (tampered-status _tampered)
-       (submit endpoint #:body #"{\"subject_id\":\"customer-b\"}"))
-     (check-equal? tampered-status 400)
+       (submit endpoint #:body #"{\\"subject_id\\":\\"customer-b\\"}"))
      (define-values (method-status _method)
        (submit endpoint #:method "GET"))
-     (check-equal? method-status 404)
      (define-values (path-status _path)
        (submit endpoint #:path "/v1/hosted/proof?anything=yes"))
-     (check-equal? path-status 404)
      (define-values (key-status _key)
        (submit endpoint #:service "other-backend"))
-     (check-equal? key-status 401)
      (define-values (mac-status _mac)
-       (submit endpoint #:mac (make-string 64 #\0)))
-     (check-equal? mac-status 401)
+       (submit endpoint #:mac (make-string 64 #\\0)))
      (define-values (clock-status _clock)
        (submit endpoint #:timestamp "1301"))
+     (check-equal? tampered-status 400)
+     (check-equal? method-status 404)
+     (check-equal? path-status 404)
+     (check-equal? key-status 401)
+     (check-equal? mac-status 401)
      (check-equal? clock-status 401))))
 
 (test-case "duplicate JSON member, new fields and malformed bodies deny"
   (with-endpoint
    (lambda (endpoint)
-     (define duplicate
-       (bytes-append
-        #"{\"issuer\":\"com.turinglambdaai\",\"issuer\":\"other\"}"
-        #""))
+     (define duplicate #"{\\"issuer\\":\\"com.turinglambdaai\\",\\"issuer\\":\\"other\\"}")
+     (define extra
+       (bytes-append (subbytes body 0 (sub1 (bytes-length body)))
+                     #",\\"paid\\":true}"))
      (define-values (dup-status _dup) (submit endpoint #:body duplicate))
-     (check-equal? dup-status 400)
-     (define-values (extra-status _extra)
-       (submit endpoint #:body (bytes-append (subbytes body 0 (sub1 (bytes-length body)))
-                                              #",\"paid\":true}")))
-     (check-equal? extra-status 400)
+     (define-values (extra-status _extra) (submit endpoint #:body extra))
      (define-values (invalid-status _invalid)
        (submit endpoint #:body #"not json"))
+     (check-equal? dup-status 400)
+     (check-equal? extra-status 400)
      (check-equal? invalid-status 400))))
 
 (test-case "signed request with previously observed revision denies stale replica"
