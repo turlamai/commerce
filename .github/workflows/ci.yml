@@ -9,8 +9,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer main push must not cancel or replace a queued quality gate.
+  # GitHub keeps only one pending run per concurrency group even if cancellation
+  # is disabled; use a unique run ID for non-PR events.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
