@@ -47,6 +47,25 @@ fail closed on storage outage, duplicate claim, expiration or unexpected
 result. A memory hash is suitable for a unit test only, **not production**
 or multi-node replay protection.
 
+## Durable replay implementation
+
+`commerce/hosted-replay/sqlite` provides a multi-process replay callback
+using SQLite's unique constraint and an immediate transaction. Run
+`initialize-sqlite-hosted-replay-store!` **once during explicit provisioning**
+on an edge-only database path, then use
+`make-sqlite-hosted-replay-claimer` to construct
+`#:claim-once!`. The verifier passes the computed expiration value; the
+store uses a trusted clock, rejects already-expired claims and removes
+expired rows before each atomic insert.
+
+A running verifier opens the existing database read/write and never silently
+creates an empty replacement. A deleted or inaccessible replay database
+must deny requests. Startup also refuses a missing or unprovisioned table.
+Keep this database separate from issuer secrets and under access control.
+Back it up or rebuild it only with an explicit maintenance procedure:
+resetting replay state inside a live MAC timestamp window can enable
+duplicate admission. Tests use synthetic clocks and a temporary database.
+
 The verifier returns only `#t` for an authenticated, scoped and newly
 claimed request. All other outcomes deny access; no key material or MAC is
 returned. Use TLS, proxy/network access controls, per-service rate limits,
@@ -58,7 +77,7 @@ This is not a standalone HTTP route or a production-ready S2S service.
 Remaining work includes:
 
 - Bind the verifier to Commerce HTTP handling with a registered fixed route,
-  authenticated key registry, durable nonce table and secure transport;
+  authenticated key registry, explicitly provisioned replay database and secure transport;
   ensure nonce claim and entitlement read use intended transactional policy
 - Connect authenticated service identity to PR #30's signed Permit proof
   reader, not merely PR #28's non-authoritative ledger snapshot
