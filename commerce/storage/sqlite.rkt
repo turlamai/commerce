@@ -908,7 +908,17 @@ SQL
     (query-value connection "PRAGMA journal_mode = WAL")
     (query-exec connection "PRAGMA synchronous = FULL")
     (query-exec connection "PRAGMA foreign_keys = ON")
-    (initialize-schema! connection))
+    (initialize-schema! connection)
+    ;; Existing v7 stores also need the indexes: no data/schema migration
+    ;; and no full event-journal scan on each hosted read.
+    (query-exec
+     connection
+     "CREATE INDEX IF NOT EXISTS commerce_refund_journal_scope
+      ON commerce_event_journal(subject_id, offer_id, event_kind)")
+    (query-exec
+     connection
+     "CREATE INDEX IF NOT EXISTS commerce_outbox_source_kind
+      ON commerce_issuance_outbox(source_journal_sequence, action)"))
 
   (define closed? (box #f))
 
