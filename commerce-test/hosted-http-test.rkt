@@ -163,3 +163,30 @@
                #:nonce "unique_nonce_value_002"))
      (check-equal? status 200)
      (check-equal? (hash-ref response 'status) "stale-revision"))))
+
+(test-case "well-formed tampering and a freshly signed forbidden account deny"
+  (with-endpoint
+   (lambda (endpoint)
+     (define unauthorized-body
+       (jsexpr->bytes
+        (hash-set (bytes->jsexpr body) 'subject_id "customer-b")))
+     ;; Malicious proxy changes the exact raw body but cannot forge HMAC.
+     (define-values (tampered-status _tampered)
+       (submit endpoint #:body unauthorized-body
+               #:nonce "unique_nonce_value_003"))
+     ;; Even a signer that holds the S2S key has no authority for another
+     ;; account unless the server-side service registry permits that scope.
+     (define signed-forbidden
+       (bytes->hex-string
+        (hosted-request-mac
+         key #:service-id "publy-backend"
+         #:method "POST" #:path "/v1/hosted/proof"
+         #:timestamp 1000 #:nonce "unique_nonce_value_004"
+         #:issuer "com.turinglambdaai" #:subject-type "account"
+         #:subject-id "customer-b" #:offer-id "taskly-pro-lifetime"
+         #:product-id "taskly" #:body unauthorized-body)))
+     (define-values (forbidden-status _forbidden)
+       (submit endpoint #:body unauthorized-body #:mac signed-forbidden
+               #:nonce "unique_nonce_value_004"))
+     (check-equal? tampered-status 401)
+     (check-equal? forbidden-status 401))))
