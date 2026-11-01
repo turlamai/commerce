@@ -2,7 +2,8 @@
 
 ;; Durable, multi-process nonce admission for the hosted S2S MAC verifier.
 ;; Use an edge-only database file and user; never share an issuer private key.
-(provide make-sqlite-hosted-replay-claimer)
+(provide initialize-sqlite-hosted-replay-store!
+         make-sqlite-hosted-replay-claimer)
 
 (require db)
 
@@ -17,16 +18,12 @@
   (dynamic-wind void (lambda () (callback connection))
                 (lambda () (disconnect connection))))
 
-(define (make-sqlite-hosted-replay-claimer database-path
-                                         #:now [clock current-seconds])
+;; Provisioning is deliberately separate from runtime opening: a missing
+;; database after a crash must be an error, never an empty replay history.
+(define (initialize-sqlite-hosted-replay-store! database-path)
   (unless (path-string? database-path)
-    (raise-argument-error 'make-sqlite-hosted-replay-claimer
+    (raise-argument-error 'initialize-sqlite-hosted-replay-store!
                           "path-string?" database-path))
-  (unless (and (procedure? clock)
-               (procedure-arity-includes? clock 0))
-    (raise-argument-error 'make-sqlite-hosted-replay-claimer
-                          "zero-argument trusted clock" clock))
-  ;; Initialization is idempotent across multiple edge processes.
   (with-connection
    database-path
    (lambda (connection)
@@ -43,6 +40,28 @@
       "CREATE INDEX IF NOT EXISTS hosted_service_nonce_expiry
        ON hosted_service_nonce(expires_at)"))
    #:mode 'create)
+  (void))
+
+(define (make-sqlite-hosted-replay-claimer database-path
+                                         #:now [clock current-seconds])
+  (unless (path-string? database-path)
+    (raise-argument-error 'make-sqlite-hosted-replay-claimer
+                          "path-string?" database-path))
+  (unless (and (procedure? clock)
+               (procedure-arity-includes? clock 0))
+    (raise-argument-error 'make-sqlite-hosted-replay-claimer
+                          "zero-argument trusted clock" clock))
+  ;; Refuse missing or corrupted storage on start; runtime claims also use
+  ;; read/write mode and fail closed on any later database disappearance.
+  (with-connection
+   database-path
+   (lambda (connection)
+     (unless (= 1 (query-value
+                   connection
+                   "SELECT COUNT(*) FROM sqlite_master
+                    WHERE type = 'table' AND name = 'hosted_service_nonce'"))
+       (error 'make-sqlite-hosted-replay-claimer
+              "nonce replay table is not provisioned"))))
   ;; Return exactly #t for one atomic, durable first claim. SQLITE's UNIQUE
   ;; constraint serializes races between independent processes. Every claim
   ;; gets its own connection, so callbacks are safe across Racket threads.
