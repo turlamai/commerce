@@ -9,6 +9,10 @@
 (require commerce
          commerce/permit
          permit/issuer
+         (only-in permit verify-credential edition-entitled?
+                  feature-entitled? credential-usable?
+                  select-latest-entitlement)
+         racket/file
          rackunit)
 
 (define fixture-offer-id "movebit-pro-test-only")
@@ -111,3 +115,67 @@
    (lambda ()
      (make-permit-policy-catalog (list fixture-offer)
                                  (list bad-policy)))))
+
+;; This contract is stronger than a raw catalog assertion: a snapshot prepared
+;; through Commerce must be issuable by Permit, then locally verified by a
+;; product, without importing the payment provider or a signing key in the app.
+(test-case "Commerce fixture rights can be signed and verified by Permit"
+  (define-values (private-key public-key) (generate-ed25519-keypair))
+  (define trust
+    (jsexpr->trust-store
+     (hasheq 'protocol "permit-trust-store"
+             'version 1
+             'issuer "movebit-ci-fixture"
+             'keys
+             (hasheq 'movebit-test-only
+                     (hasheq 'algorithm "Ed25519"
+                             'status "active"
+                             'public_key (public-key->base64 public-key)
+                             'purposes '("entitlement")
+                             'not_before 'null
+                             'not_after 'null)))))
+  (define dir (make-temporary-file "commerce-movebit-contract-~a" 'directory))
+  (dynamic-wind
+   void
+   (lambda ()
+     (define grant-path (build-path dir "grant.permit.json"))
+     (define refund-path (build-path dir "refund.permit.json"))
+     (define grant (grant-request))
+     (define grant-payload (permit-snapshot-request-payload grant))
+     (write-issued-credential
+      (issue-credential (permit-snapshot-request-payload-bytes grant)
+                        private-key "movebit-test-only" trust)
+      grant-path)
+     (define verified (verify-credential grant-path trust))
+     (check-true (edition-entitled? verified "movebit" "pro"
+                                    #:at "2026-10-21T12:00:00Z"))
+     (check-true (feature-entitled? verified "movebit"
+                                   "advanced-work-insights"
+                                   #:at "2026-10-21T12:00:00Z"))
+     (check-false (edition-entitled? verified "another-product" "pro"
+                                     #:at "2026-10-21T12:00:00Z"))
+
+     ;; A refund generates a NEW signed revision, not an alteration of the
+     ;; immutable credential previously obtained by a disconnected customer.
+     (define refund
+       (prepare-permit-snapshot
+        catalog (intent 'withdraw)
+        #:issuer "movebit-ci-fixture"
+        #:credential-id "fixture-movebit-credential-r1"
+        #:entitlement-id "fixture-movebit-entitlement"
+        #:issued-at "2026-10-22T00:00:00Z"
+        #:previous grant-payload))
+     (write-issued-credential
+      (issue-credential (permit-snapshot-request-payload-bytes refund)
+                        private-key "movebit-test-only" trust)
+      refund-path)
+     (define revoked-snapshot (verify-credential refund-path trust))
+     (check-false
+      (credential-usable?
+       (select-latest-entitlement (list verified revoked-snapshot))
+       #:at "2026-10-23T00:00:00Z"))
+     ;; Offline devices that never receive the revision cannot infer this
+     ;; withdrawal. Reconciliation/activation policy remains a product gate.
+     (check-true
+      (credential-usable? verified #:at "2026-10-23T00:00:00Z")))
+   (lambda () (delete-directory/files dir))))
