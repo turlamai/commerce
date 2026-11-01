@@ -106,7 +106,7 @@
   (with-endpoint
    (lambda (endpoint)
      (define-values (tampered-status _tampered)
-       (submit endpoint #:body #"{\\"subject_id\\":\\"customer-b\\"}"))
+       (submit endpoint #:body #"{\"subject_id\":\"customer-b\"}"))
      (define-values (method-status _method)
        (submit endpoint #:method "GET"))
      (define-values (path-status _path)
@@ -114,7 +114,7 @@
      (define-values (key-status _key)
        (submit endpoint #:service "other-backend"))
      (define-values (mac-status _mac)
-       (submit endpoint #:mac (make-string 64 #\\0)))
+       (submit endpoint #:mac (make-string 64 #\0)))
      (define-values (clock-status _clock)
        (submit endpoint #:timestamp "1301"))
      (check-equal? tampered-status 400)
@@ -127,10 +127,10 @@
 (test-case "duplicate JSON member, new fields and malformed bodies deny"
   (with-endpoint
    (lambda (endpoint)
-     (define duplicate #"{\\"issuer\\":\\"com.turinglambdaai\\",\\"issuer\\":\\"other\\"}")
+     (define duplicate #"{\"issuer\":\"com.turinglambdaai\",\"issuer\":\"other\"}")
      (define extra
        (bytes-append (subbytes body 0 (sub1 (bytes-length body)))
-                     #",\\"paid\\":true}"))
+                     #",\"paid\":true}"))
      (define-values (dup-status _dup) (submit endpoint #:body duplicate))
      (define-values (extra-status _extra) (submit endpoint #:body extra))
      (define-values (invalid-status _invalid)
