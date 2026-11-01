@@ -39,7 +39,7 @@
                 usd-29 "taskly-pro-v1"))
    (list (make-permit-entitlement-policy
           "taskly-pro-v1" 1
-          #:subject-type 'person
+          #:subject-type 'account
           #:grants (list (make-permit-grant-policy
                           #:products '("taskly")
                           #:edition "pro"))))))
@@ -82,7 +82,7 @@
                        #:minimum [minimum #f]
                        #:lineage [lineage #f])
           (current-verified-entitlement-proof
-           storage #:issuer issuer-name #:subject-type "person"
+           storage #:issuer issuer-name #:subject-type "account"
            #:subject-id subject #:offer-id "taskly-pro-lifetime"
            #:product-id product #:authorize authorize
            #:trust-store store #:at "2026-10-18T00:00:00Z"
