@@ -51,33 +51,29 @@
               (and (string? published-at) (<= 1 (string-length published-at) 64)))
     (raise-argument-error 'current-hosted-right-admission
                           "(or/c #f RFC3339-UTC-string)" published-at))
-  ;; The Permit evaluator requires an immutable publication timestamp to
-  ;; authorize a future feature stream or update. Missing is never allowed.
-  (define proof
-    (current-verified-entitlement-proof
-     storage #:issuer issuer #:subject-type subject-type
-     #:subject-id subject-id #:offer-id offer-id #:product-id product-id
-     #:authorize authorize #:trust-store trust-store #:at at
-     #:minimum-revision minimum
-     #:expected-entitlement-id expected-id))
-  (define proof-status (hash-ref proof 'status))
-  (if (not (equal? proof-status "verified-proof"))
-      (hasheq 'allowed #f 'status proof-status)
-      ;; Reverify the returned signature against the same pinned trust store
-      ;; before applying Permit policy. Policy rejects default to no access
-      ;; and do not echo signed claims, PII or payment metadata.
-      (with-handlers ([exn:fail?
-                       (lambda (_) (hasheq 'allowed #f
-                                            'status "policy-invalid"))])
-        (let* ([envelope (jsexpr->envelope (hash-ref proof 'credential))]
-               [credential (verify-credential envelope trust-store)]
-               [allowed?
-                (and (or (not (eq? kind 'update)) published-at)
-                     (evaluate-right credential product-id kind right-id
-                                     at published-at))])
-          (if allowed?
-              (hasheq 'allowed #t
-                      'status "entitled"
-                      'entitlement_id (hash-ref proof 'entitlement_id)
-                      'revision (hash-ref proof 'revision))
-              (hasheq 'allowed #f 'status "not-entitled"))))))
+  ;; Product service must supply trusted time, account binding and policy.
+  (let* ([proof
+          (current-verified-entitlement-proof
+           storage #:issuer issuer #:subject-type subject-type
+           #:subject-id subject-id #:offer-id offer-id #:product-id product-id
+           #:authorize authorize #:trust-store trust-store #:at at
+           #:minimum-revision minimum
+           #:expected-entitlement-id expected-id)]
+         [proof-status (hash-ref proof 'status)])
+    (if (not (equal? proof-status "verified-proof"))
+        (hasheq 'allowed #f 'status proof-status)
+        (with-handlers ([exn:fail?
+                         (lambda (_) (hasheq 'allowed #f
+                                              'status "policy-invalid"))])
+          (let* ([envelope (jsexpr->envelope (hash-ref proof 'credential))]
+                 [credential (verify-credential envelope trust-store)]
+                 [allowed?
+                  (and (or (not (eq? kind 'update)) published-at)
+                       (evaluate-right credential product-id kind right-id
+                                       at published-at))])
+            (if allowed?
+                (hasheq 'allowed #t
+                        'status "entitled"
+                        'entitlement_id (hash-ref proof 'entitlement_id)
+                        'revision (hash-ref proof 'revision))
+                (hasheq 'allowed #f 'status "not-entitled")))))))
