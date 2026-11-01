@@ -18,6 +18,12 @@ primitive to an unauthenticated HTTP route.
 
 The optional `#:minimum-revision` is a nonnegative revision number from the
 product service's **durably remembered and authenticated** high-water mark.
+A consumer should also pin the **entitlement identity** returned from its
+previously authenticated response using `#:expected-entitlement-id`. A
+missing or changed lineage returns `status=lineage-mismatch`, regardless of
+whether a new lineage's revision counter was reset to zero. The two pins must
+be maintained together per authenticated subject and Offer.
+
 When the latest stored revision is older, missing, or pending, the function
 returns `status=stale-revision`. The product must fail closed or retry against
 a fresh replica, **not** grant from a cached older version. This is an
@@ -31,6 +37,7 @@ Possible status values:
 | `absent` | No matching lineage (no minimum revision requested) | **No** |
 | `pending` | Lineage exists, no recorded revision | **No** |
 | `stale-revision` | Requested minimum revision not available | **No** |
+| `lineage-mismatch` | Previously pinned entitlement identity is absent or changed | **No** |
 | `recorded-grant` | Latest stored revision has action `grant` | **Not from this response alone** |
 | `recorded-withdrawal` | Latest stored revision has action `withdraw` | **No** |
 | `unknown` | Unexpected revision action | **No** |
