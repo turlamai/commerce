@@ -44,7 +44,7 @@
                 (entitlement-revision-payload-bytes revision))))
 
 (define (verify-signed-record storage snapshot revision record
-                              issuer subject-type subject-id
+                              issuer subject-type subject-id offer-id
                               product-id trust-store at)
   ;; A malformed or revoked signature, bad trust store entry, and any
   ;; mismatched ledger evidence all fail closed without exposing internals.
@@ -68,6 +68,8 @@
                 (not (= (entitlement-revision-revision latest)
                         (hash-ref snapshot 'revision))))
             (hasheq 'status "stale-revision")]
+           [(storage-unresolved-refund? storage subject-id offer-id)
+            (hasheq 'status "refund-pending")]
            [(not (hash-ref policy 'usable?))
             (hasheq 'status "not-usable"
                     'reasons (map symbol->string (hash-ref policy 'reasons)))]
@@ -82,12 +84,16 @@
                     'credential (envelope->jsexpr envelope))]))])))
 
 (define (verify-snapshot-record storage snapshot
-                                issuer subject-type subject-id
+                                issuer subject-type subject-id offer-id
                                 product-id trust-store at)
   (define revision
     (storage-latest-entitlement-revision
      storage (hash-ref snapshot 'entitlement_id)))
   (cond
+    [(storage-unresolved-refund? storage subject-id offer-id)
+     ;; Refunded evidence has been authenticated but not yet reflected in a
+     ;; signed withdrawal revision. Never serve an older grant in that gap.
+     (hasheq 'status "refund-pending")]
     [(or (not revision)
          (not (= (entitlement-revision-revision revision)
                  (hash-ref snapshot 'revision))))
@@ -98,7 +104,7 @@
              storage (entitlement-revision-issuance-outbox-id revision))])
        (if record
            (verify-signed-record storage snapshot revision record
-                                 issuer subject-type subject-id
+                                 issuer subject-type subject-id offer-id
                                  product-id trust-store at)
            (hasheq 'status "proof-unavailable")))]))
 
@@ -139,7 +145,7 @@
      #:offer-id offer-id #:authorize authorize-scope
      #:minimum-revision minimum #:expected-entitlement-id expected-id))
   (if (equal? (hash-ref snapshot 'status) "recorded-grant")
-      (verify-snapshot-record storage snapshot issuer subject-type subject-id
+      (verify-snapshot-record storage snapshot issuer subject-type subject-id offer-id
                               product-id trust-store at)
       ;; Never promote a ledger-only withdrawal, absent, pending, stale,
       ;; or changed-lineage result into signed authorization.
