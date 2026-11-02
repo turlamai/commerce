@@ -54,7 +54,7 @@
      (check-equal? (hash-ref details 'integrity) "ok")
      (check-equal? (hash-ref details 'journal-total) 1)
      (check-equal? (hash-ref details 'expected-journal-total) 1)
-     (check-equal? (readiness-schema-version original) 7)
+     (check-equal? (readiness-schema-version original) 8)
      ;; The restored copy opens as Commerce storage with the same evidence.
      (define restored (open-sqlite-commerce-storage backup-path))
      (check-equal?

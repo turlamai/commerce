@@ -26,6 +26,7 @@
  pancake-webhook-payload-digest
  pancake-webhook-signature-timestamp-ms
  verify-pancake-webhook
+ verify-pancake-webhook-signature
  pancake-api-endpoint
  (struct-out pancake-order-binding)
  pancake-merchant-client?
@@ -318,31 +319,26 @@ PEM
      (hash 'environment environment 'payload-digest digest)))
   payload)
 
-(define (verify-pancake-webhook
+;; Authenticity-only verification: RSA signature over "<timestamp>.<body>"
+;; plus strict post-authentication parsing. Deliberately no freshness window:
+;; the timestamp tolerance is an ingestion-time anti-replay concern checked by
+;; verify-pancake-webhook, while offline re-verification of journaled evidence
+;; must not reject a genuine historical webhook for being old.
+(define (verify-pancake-webhook-signature
          raw-body
          signature-header
          #:environment environment
-         #:keyring [keyring default-pancake-webhook-keyring]
-         #:now-ms [now-ms
-                   (inexact->exact (floor (current-inexact-milliseconds)))]
-         #:past-tolerance-ms [past-tolerance-ms default-past-tolerance-ms]
-         #:future-tolerance-ms [future-tolerance-ms default-future-tolerance-ms])
+         #:keyring [keyring default-pancake-webhook-keyring])
   (unless (bytes? raw-body)
     (raise-arguments-error
-     'verify-pancake-webhook
+     'verify-pancake-webhook-signature
      "raw-body must be bytes"))
   (unless (environment? environment)
     (raise-argument-error
-     'verify-pancake-webhook "(or/c 'test 'production)" environment))
+     'verify-pancake-webhook-signature "(or/c 'test 'production)" environment))
   (unless (pancake-webhook-keyring? keyring)
     (raise-argument-error
-     'verify-pancake-webhook "pancake-webhook-keyring?" keyring))
-  (for ([value (in-list (list now-ms past-tolerance-ms future-tolerance-ms))]
-        [description (in-list '("exact-nonnegative-integer? for now-ms"
-                                "exact-nonnegative-integer? for past-tolerance-ms"
-                                "exact-nonnegative-integer? for future-tolerance-ms"))])
-    (unless (exact-nonnegative-integer? value)
-      (raise-argument-error 'verify-pancake-webhook description value)))
+     'verify-pancake-webhook-signature "pancake-webhook-keyring?" keyring))
 
   ;; Copy before authentication so a caller cannot mutate the accepted bytes
   ;; between signature verification and later audit or parsing.
@@ -350,8 +346,6 @@ PEM
   (define-values (timestamp-text signature-text)
     (parse-signature-header signature-header))
   (define signature-timestamp-ms (parse-timestamp timestamp-text))
-  (check-timestamp-window
-   signature-timestamp-ms now-ms past-tolerance-ms future-tolerance-ms)
   (define public-key
     (parse-public-key (public-key-for keyring environment) environment))
   (define signature (decode-signature signature-text environment))
@@ -377,6 +371,29 @@ PEM
    body
    digest
    signature-timestamp-ms))
+
+(define (verify-pancake-webhook
+         raw-body
+         signature-header
+         #:environment environment
+         #:keyring [keyring default-pancake-webhook-keyring]
+         #:now-ms [now-ms
+                   (inexact->exact (floor (current-inexact-milliseconds)))]
+         #:past-tolerance-ms [past-tolerance-ms default-past-tolerance-ms]
+         #:future-tolerance-ms [future-tolerance-ms default-future-tolerance-ms])
+  (for ([value (in-list (list now-ms past-tolerance-ms future-tolerance-ms))]
+        [description (in-list '("exact-nonnegative-integer? for now-ms"
+                                "exact-nonnegative-integer? for past-tolerance-ms"
+                                "exact-nonnegative-integer? for future-tolerance-ms"))])
+    (unless (exact-nonnegative-integer? value)
+      (raise-argument-error 'verify-pancake-webhook description value)))
+  (define webhook
+    (verify-pancake-webhook-signature
+     raw-body signature-header #:environment environment #:keyring keyring))
+  (check-timestamp-window
+   (pancake-webhook-signature-timestamp-ms webhook)
+   now-ms past-tolerance-ms future-tolerance-ms)
+  webhook)
 
 ;; ---------------------------------------------------------------------------
 ;; Active one-time order verification

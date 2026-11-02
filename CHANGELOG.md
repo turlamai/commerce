@@ -4,6 +4,23 @@ All notable changes to Commerce are documented here.
 
 ## Unreleased
 
+### Security
+
+- Enforce the ADR-0020 verified-evidence boundary in the issuer role
+  (issue #10): journal rows gain a `signature_evidence` column (schema
+  v8), the Pancake edge journals the exact signature header it
+  authenticated, and a new `commerce/evidence.rkt` verifier re-verifies
+  stored provider signatures offline with issuer-held public keys, binds
+  the claimed outbox Offer to the journaled evidence, and anchors the
+  amount to the pinned catalog price before any grant is signed. Forged
+  journal rows, tampered amounts/statuses, retargeted outbox intents,
+  unknown or deleted Offers, missing evidence, and unconfigured verifier
+  keys all fail closed with typed refusals and no lineage or revision
+  written. Withdrawals intentionally skip payment re-verification: a
+  forged refund can deny service but cannot mint rights. The
+  offer-to-subject binding remains edge-written and is recorded as the
+  residual milestone.
+
 ### Fixed
 
 - Import `storage-close` explicitly in the hosted proof HTTP example and

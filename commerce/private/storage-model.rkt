@@ -18,7 +18,8 @@
 ;; issuance, and claim operations so the SQLite backend can enforce their
 ;; transaction boundaries.
 (struct commerce-storage
-  (journal-accept journal-lookup project-next order-lookup outbox-lookup
+  (journal-accept journal-lookup journal-sequence-lookup project-next
+                  order-lookup outbox-lookup
                   issuance-claim issuance-complete issuance-release
                   entitlement-lookup lineage-lookup revision-lookup
                   latest-revision-lookup claim-lookup claim-notified

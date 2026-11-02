@@ -81,7 +81,7 @@
    (lambda (path)
      (define storage (open-sqlite-commerce-storage path))
      (define snapshot (storage-readiness storage #:now 100))
-     (check-equal? (readiness-schema-version snapshot) 7)
+     (check-equal? (readiness-schema-version snapshot) 8)
      (check-equal? (readiness-journal-total snapshot) 0)
      (check-equal? (readiness-journal-unprojected snapshot) 0)
      (check-equal? (readiness-projection-blocked snapshot) 0)

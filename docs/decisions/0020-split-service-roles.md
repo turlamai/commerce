@@ -37,12 +37,31 @@ unauthorized rights. Database triggers and idempotency protect ordinary
 application mistakes, not arbitrary malicious SQL from a writable role.
 No claim of a fully isolated trustworthy signer is warranted.
 
-A subsequent milestone must require an independently authenticated,
-least-privilege signing-intent channel, or a durable verified evidence
-boundary in which the HTTP process cannot forge issuer-authorized work.
-Test attempted payment/order forgery, wrong issuer/key/environment, actor
-restarts, delayed or duplicate messages, and signer outage before claiming
-production signing separation.
+The verified-evidence milestone below is now implemented (issue #10):
+the issuer role re-verifies journaled payment evidence offline before any
+grant signing, so an HTTP-process database writer cannot induce a
+credential without a genuinely provider-signed payment for the exact
+catalog price. Tested by direct database forgery of journal and outbox
+rows, tampered amounts and statuses, retargeted outbox intents, deleted
+and unknown Offers, missing evidence, and unconfigured verifier keys —
+every forged path fails closed with a typed refusal and no lineage or
+revision is written.
+
+Remaining limitations, recorded honestly:
+
+- The offer-to-subject checkout binding is still written by the edge and
+  cannot authenticate itself. A compromised edge can therefore spend a
+  genuine payment on a different subject of the same Offer, or bind a
+  victim subject to its own purchase. Closing this requires an
+  authenticated binding-minting channel and is a further milestone.
+- Pancake amounts are anchored to the Offer price, not to the webhook
+  body (the webhook does not carry the payment amount); the signed
+  webhook, journal event identity, and catalog price are the anchors.
+- Withdrawal intents intentionally skip payment re-verification: a
+  forged refund can deny service by revoking a lineage a verified grant
+  created, but cannot mint rights.
+- Refund-row re-verification lands with the full-refund slice's
+  refund-query proof once that slice reaches main.
 
 ## Expected behavior
 

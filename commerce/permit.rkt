@@ -41,6 +41,7 @@
  permit-snapshot-request-payload
  permit-snapshot-request-payload-bytes
  permit-policy-for-offer
+ permit-catalog-offer
  prepare-permit-snapshot)
 
 (require permit/issuer
@@ -457,6 +458,21 @@
      (hash 'offer-id offer-id)))
   (hash-ref (permit-policy-catalog-policies-by-id catalog)
             (offer-entitlement-policy-id resolved-offer)))
+
+;; Resolves the pinned catalog Offer for an identifier without the policy
+;; lookup: #f for unknown or deliberately deleted Offers. The issuer-side
+;; evidence verifier uses the returned price as the amount trust anchor, so
+;; a grant can never be induced for an amount the catalog never sold.
+(define (permit-catalog-offer catalog offer-id)
+  (unless (permit-policy-catalog? catalog)
+    (raise-argument-error
+     'permit-catalog-offer "permit-policy-catalog?" catalog))
+  (unless (stable-id? offer-id)
+    (raise-argument-error
+     'permit-catalog-offer "stable kebab-case offer identifier" offer-id))
+  (and (not (hash-has-key?
+             (permit-policy-catalog-deleted-offer-ids catalog) offer-id))
+       (hash-ref (permit-policy-catalog-offers-by-id catalog) offer-id #f)))
 
 ;; A duration policy pins the updates window to paid evidence: paid-at plus
 ;; the policy's days, derived deterministically so a replay converges on

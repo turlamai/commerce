@@ -117,10 +117,19 @@
         (money (checkout-binding-currency binding)
                (checkout-binding-amount-minor-units binding))
         (checkout-binding-currency-exponent binding))))
+    ;; Journal the exact signature evidence the issuer role needs to
+    ;; re-verify this row offline (ADR-0020): the environment tag selects the
+    ;; keyring entry and the header carries the t/v1 fields it authenticated.
+    (define signature-evidence
+      (jsexpr->bytes
+       (hasheq 'environment
+               (symbol->string (webhook-endpoint-environment endpoint))
+               'signature_header signature-header)))
     (define acceptance
       (journal-accept! storage
                        (pancake-webhook-raw-body webhook) event
-                       #:received-at (current-seconds)))
+                       #:received-at (current-seconds)
+                       #:evidence signature-evidence))
     (http-error
      200
      (hash 'accepted #t
