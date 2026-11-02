@@ -68,7 +68,7 @@
      (define connection
        (sqlite3-connect #:database path #:mode 'read/write))
      (query-exec connection "PRAGMA foreign_keys = ON")
-     (check-equal? (query-value connection "PRAGMA user_version") 7)
+     (check-equal? (query-value connection "PRAGMA user_version") 8)
      (check-equal?
       (query-value
        connection
@@ -533,7 +533,7 @@ SQL
      (storage-close storage)
      (define connection
        (sqlite3-connect #:database path #:mode 'read-only))
-     (check-equal? (query-value connection "PRAGMA user_version") 7)
+     (check-equal? (query-value connection "PRAGMA user_version") 8)
      (check-equal?
       (query-value
        connection
@@ -567,6 +567,7 @@ SQL
      (query-exec old "DROP TABLE commerce_entitlement_revision")
      (query-exec old "DROP TABLE commerce_entitlement_lineage")
      (query-exec old "ALTER TABLE commerce_event_journal DROP COLUMN paid_through")
+     (query-exec old "ALTER TABLE commerce_event_journal DROP COLUMN signature_evidence")
      (query-exec old "PRAGMA user_version = 2")
      (define before
        (query-row
@@ -578,7 +579,7 @@ SQL
      (storage-close migrated)
      (define connection
        (sqlite3-connect #:database path #:mode 'read-only))
-     (check-equal? (query-value connection "PRAGMA user_version") 7)
+     (check-equal? (query-value connection "PRAGMA user_version") 8)
      (check-equal?
       (query-row
        connection

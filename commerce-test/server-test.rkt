@@ -232,7 +232,7 @@
          (handle-readyz endpoint))
        (check-eq? status 200)
        (define snapshot (parse-json body))
-       (check-equal? (hash-ref snapshot 'schema-version) 7)
+       (check-equal? (hash-ref snapshot 'schema-version) 8)
        (check-equal? (hash-ref snapshot 'journal-unprojected) 0)
        (check-equal? (hash-ref snapshot 'warnings) '())
        (storage-close storage))))
