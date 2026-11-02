@@ -16,6 +16,7 @@
 
 (module+ main
   (require commerce
+           commerce/evidence
            commerce/health
            commerce/issuer
            commerce/pancake
@@ -66,6 +67,11 @@
     (and issuer? (env-require "PERMIT_PRIVATE_KEY_PATH")))
   (define trust-store-path
     (and issuer? (env-require "PERMIT_TRUST_STORE_PATH")))
+  ;; Issuer-side evidence re-verification keys (ADR-0020): public provider
+  ;; keys only, never merchant credentials. Optional per provider; a provider
+  ;; without a configured verification key fails closed at issuance.
+  (define alipay-verification-key-path
+    (and issuer? (env "ALIPAY_PUBLIC_KEY_PATH" #f)))
   (define merchant-id (and edge? (env-require "PANCAKE_MERCHANT_ID")))
   (define merchant-key-path
     (and edge? (env-require "PANCAKE_MERCHANT_KEY_PATH")))
@@ -116,6 +122,16 @@
 
   (define catalog (and issuer? (make-placeholder-catalog)))
 
+  ;; The issuer re-verifies journaled payment evidence before any signing:
+  ;; provider public keys plus the pinned catalog price anchor (issue #10).
+  (define evidence-verifier
+    (and issuer?
+         (make-issuance-evidence-verifier
+          #:catalog catalog
+          #:alipay-public-key-pem
+          (and alipay-verification-key-path
+               (string-trim (file->string alipay-verification-key-path))))))
+
   ;; ---- storage, worker, edge ------------------------------------------
 
   (define storage (open-sqlite-commerce-storage db-path))
@@ -128,7 +144,8 @@
           #:private-key private-key
           #:key-id key-id
           #:trust-store trust-store
-          #:owner (env "COMMERCE_WORKER_OWNER" "commerce-service"))))
+          #:owner (env "COMMERCE_WORKER_OWNER" "commerce-service")
+          #:evidence-verifier evidence-verifier)))
 
   (define merchant-client
     (and edge?
