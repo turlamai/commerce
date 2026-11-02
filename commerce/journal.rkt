@@ -32,8 +32,13 @@
 
 ;; A provider adapter may request acknowledgement only through this operation.
 ;; The raw bytes are copied before hashing so caller mutation cannot make the
-;; digest check and the committed value disagree.
-(define (journal-accept! storage payload event #:received-at received-at)
+;; digest check and the committed value disagree. Evidence carries the
+;; supplementary provider-signed material (such as a webhook signature header)
+;; the issuer role needs to re-verify the row offline; it is #f when the
+;; payload itself is self-authenticating.
+(define (journal-accept! storage payload event
+                         #:received-at received-at
+                         #:evidence [evidence #f])
   (check-storage 'journal-accept! storage)
   (unless (bytes? payload)
     (raise-argument-error 'journal-accept! "bytes?" payload))
@@ -42,7 +47,11 @@
   (unless (exact-nonnegative-integer? received-at)
     (raise-argument-error
      'journal-accept! "exact-nonnegative-integer?" received-at))
+  (unless (or (not evidence) (bytes? evidence))
+    (raise-argument-error 'journal-accept! "(or/c #f bytes?)" evidence))
   (define immutable-payload (bytes->immutable-bytes payload))
+  (define immutable-evidence
+    (and evidence (bytes->immutable-bytes evidence)))
   (define actual-digest
     (bytes->hex-string (sha256-bytes immutable-payload)))
   (unless (string=? actual-digest (payment-event-payload-digest event))
@@ -66,7 +75,7 @@
                (hash)))
             (raise failure))])
       ((commerce-storage-journal-accept storage)
-       immutable-payload event received-at)))
+       immutable-payload event received-at immutable-evidence)))
   (define disposition (journal-acceptance-disposition result))
   (log-commerce-event!
    (if (eq? disposition 'accepted) 'info 'debug)

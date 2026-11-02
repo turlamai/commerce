@@ -10,7 +10,7 @@
          "../private/projection.rkt"
          "../private/storage-model.rkt")
 
-(define schema-version 7)
+(define schema-version 8)
 (define application-id 1129270605) ; ASCII "COMM"
 (define sqlite-max-integer 9223372036854775807)
 
@@ -18,9 +18,19 @@
   #<<SQL
 SELECT sequence, provider, event_id, raw_payload, payload_digest, event_kind,
        order_id, offer_id, subject_id, currency, amount_minor_units,
-       occurred_at, received_at, paid_through
+       occurred_at, received_at, paid_through, signature_evidence
 FROM commerce_event_journal
 WHERE provider = ? AND event_id = ?
+SQL
+  )
+
+(define select-record-by-sequence-sql
+  #<<SQL
+SELECT sequence, provider, event_id, raw_payload, payload_digest, event_kind,
+       order_id, offer_id, subject_id, currency, amount_minor_units,
+       occurred_at, received_at, paid_through, signature_evidence
+FROM commerce_event_journal
+WHERE sequence = ?
 SQL
   )
 
@@ -28,7 +38,8 @@ SQL
   #<<SQL
 SELECT j.sequence, j.provider, j.event_id, j.raw_payload, j.payload_digest,
        j.event_kind, j.order_id, j.offer_id, j.subject_id, j.currency,
-       j.amount_minor_units, j.occurred_at, j.received_at, j.paid_through
+       j.amount_minor_units, j.occurred_at, j.received_at, j.paid_through,
+       j.signature_evidence
 FROM commerce_event_journal AS j
 LEFT JOIN commerce_projection_event AS p
   ON p.journal_sequence = j.sequence
@@ -111,7 +122,7 @@ SQL
   #<<SQL
 SELECT sequence, provider, event_id, raw_payload, payload_digest, event_kind,
        order_id, offer_id, subject_id, currency, amount_minor_units,
-       occurred_at, received_at, paid_through
+       occurred_at, received_at, paid_through, signature_evidence
 FROM commerce_event_journal
 WHERE provider = ? AND order_id = ?
 ORDER BY sequence
@@ -212,7 +223,7 @@ SQL
   (match-define
     (vector sequence provider event-id payload payload-digest event-kind
             order-id offer-id subject-id currency amount-minor-units
-            occurred-at received-at paid-through)
+            occurred-at received-at paid-through evidence)
     row)
   (journal-record
    sequence
@@ -223,7 +234,9 @@ SQL
                   occurred-at
                   (nullable paid-through))
    (bytes->immutable-bytes payload)
-   received-at))
+   received-at
+   (and (not (sql-null? evidence))
+        (bytes->immutable-bytes evidence))))
 
 (define (row->order row)
   (and row
@@ -346,6 +359,7 @@ CREATE TABLE commerce_event_journal (
   occurred_at INTEGER NOT NULL CHECK (occurred_at >= 0),
   received_at INTEGER NOT NULL CHECK (received_at >= 0),
   paid_through INTEGER CHECK (paid_through >= 0),
+  signature_evidence BLOB,
   UNIQUE (provider, event_id)
 )
 SQL
@@ -760,6 +774,9 @@ SQL
       (lambda ()
         (query-exec connection
                     "ALTER TABLE commerce_event_journal ADD COLUMN paid_through INTEGER CHECK (paid_through >= 0)")
+        (query-exec
+         connection
+         "ALTER TABLE commerce_event_journal ADD COLUMN signature_evidence BLOB")
         (create-projection-schema! connection)
         (create-lineage-schema! connection)
         (create-delivery-schema! connection)
@@ -774,6 +791,9 @@ SQL
       (lambda ()
         (query-exec connection
                     "ALTER TABLE commerce_event_journal ADD COLUMN paid_through INTEGER CHECK (paid_through >= 0)")
+        (query-exec
+         connection
+         "ALTER TABLE commerce_event_journal ADD COLUMN signature_evidence BLOB")
         (create-lineage-schema! connection)
         (create-delivery-schema! connection)
         (create-checkout-binding-schema! connection)
@@ -787,6 +807,9 @@ SQL
       (lambda ()
         (query-exec connection
                     "ALTER TABLE commerce_event_journal ADD COLUMN paid_through INTEGER CHECK (paid_through >= 0)")
+        (query-exec
+         connection
+         "ALTER TABLE commerce_event_journal ADD COLUMN signature_evidence BLOB")
         (query-exec connection
                     "ALTER TABLE commerce_order_projection ADD COLUMN paid_through INTEGER CHECK (paid_through >= 0)")
         (create-checkout-binding-schema! connection)
@@ -798,8 +821,21 @@ SQL
      (call-with-transaction
       connection
       (lambda ()
+        (query-exec
+         connection
+         "ALTER TABLE commerce_event_journal ADD COLUMN signature_evidence BLOB")
         (create-checkout-binding-schema! connection)
         (create-audit-schema! connection)
+        (query-exec connection
+                    (format "PRAGMA user_version = ~a" schema-version)))
+      #:option 'immediate)]
+    [(= stored-version 7)
+     (call-with-transaction
+      connection
+      (lambda ()
+        (query-exec
+         connection
+         "ALTER TABLE commerce_event_journal ADD COLUMN signature_evidence BLOB")
         (query-exec connection
                     (format "PRAGMA user_version = ~a" schema-version)))
       #:option 'immediate)]
@@ -807,6 +843,9 @@ SQL
      (call-with-transaction
       connection
       (lambda ()
+        (query-exec
+         connection
+         "ALTER TABLE commerce_event_journal ADD COLUMN signature_evidence BLOB")
         (create-audit-schema! connection)
         (query-exec connection
                     (format "PRAGMA user_version = ~a" schema-version)))
@@ -820,6 +859,9 @@ SQL
         (create-audit-schema! connection)
         (query-exec connection
                     "ALTER TABLE commerce_event_journal ADD COLUMN paid_through INTEGER CHECK (paid_through >= 0)")
+        (query-exec
+         connection
+         "ALTER TABLE commerce_event_journal ADD COLUMN signature_evidence BLOB")
         (query-exec connection
                     "ALTER TABLE commerce_order_projection ADD COLUMN paid_through INTEGER CHECK (paid_through >= 0)")
         (query-exec connection
@@ -926,7 +968,7 @@ SQL
     (when (unbox closed?)
       (raise-commerce 'storage-closed "commerce storage is closed" (hash))))
 
-  (define (accept payload event received-at)
+  (define (accept payload event received-at evidence)
     (check-open)
     (check-sqlite-integer
      'amount-minor-units (money-minor-units (payment-event-amount event)) event)
@@ -957,8 +999,8 @@ SQL
 INSERT INTO commerce_event_journal
   (provider, event_id, raw_payload, payload_digest, event_kind, order_id,
    offer_id, subject_id, currency, amount_minor_units, occurred_at,
-   received_at, paid_through)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+   received_at, paid_through, signature_evidence)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 SQL
            (payment-event-provider event)
            (payment-event-event-id event)
@@ -972,7 +1014,8 @@ SQL
            (money-minor-units (payment-event-amount event))
            (payment-event-occurred-at event)
            received-at
-           (sql-nullable (payment-event-paid-through event)))
+           (sql-nullable (payment-event-paid-through event))
+           (sql-nullable evidence))
           (journal-acceptance
            'accepted
            (lookup-record connection
@@ -983,6 +1026,13 @@ SQL
   (define (lookup-journal provider event-id)
     (check-open)
     (lookup-record connection provider event-id))
+
+  (define (lookup-journal-sequence sequence)
+    (check-open)
+    (check-sqlite-integer 'journal-sequence sequence #f)
+    (define row
+      (query-maybe-row connection select-record-by-sequence-sql sequence))
+    (and row (row->record row)))
 
   (define (project-next processed-at)
     (check-open)
@@ -1704,7 +1754,8 @@ SQL
       (set-box! closed? #t)))
 
   (commerce-storage
-   accept lookup-journal project-next lookup-projection lookup-work
+   accept lookup-journal lookup-journal-sequence project-next
+   lookup-projection lookup-work
    claim-work complete-work release-work
    entitlement-ref lineage-ref revision-ref latest-revision
    claim-credential mark-claim-notified

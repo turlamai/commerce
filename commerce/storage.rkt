@@ -89,6 +89,7 @@
  storage-mark-claim-notified
  storage-outbox-scan
  storage-order-journal
+ storage-journal-sequence-ref
  storage-order-outbox
  storage-issued-credential-ref
  storage-redrive-issuance-work!
@@ -439,6 +440,16 @@
      'storage-order-journal
      "non-empty opaque provider order identifier" order-id))
   ((commerce-storage-order-journal storage) provider order-id))
+
+;; Reads one journal row back by its durable sequence number. The issuer role
+;; uses this to re-verify the exact evidence a claimed outbox row was derived
+;; from; the sequence is immutable and never reused.
+(define (storage-journal-sequence-ref storage sequence)
+  (check-storage 'storage-journal-sequence-ref storage)
+  (unless (exact-nonnegative-integer? sequence)
+    (raise-argument-error
+     'storage-journal-sequence-ref "exact-nonnegative-integer?" sequence))
+  ((commerce-storage-journal-sequence-lookup storage) sequence))
 
 (define (storage-order-outbox storage provider order-id)
   (check-storage 'storage-order-outbox storage)
