@@ -87,6 +87,15 @@ Production signing should run through a narrow signer interface so the
 HTTP-facing process cannot read/export the raw key. Key identifiers and
 rotation state are recorded with every issuance.
 
+Signing authority is bounded by the verified-evidence boundary
+(ADR-0020, issue #10): the issuer role re-verifies journaled provider
+signatures offline with issuer-held public keys and the pinned catalog
+price before any grant is signed, so a compromised HTTP edge that forges
+journal, projection, or outbox rows cannot obtain a credential without a
+genuine provider-signed payment for the exact amount. The offer-to-subject
+binding remains edge-written and is a recorded residual; see ADR-0020 for
+the full list.
+
 ## Customer identity
 
 Commerce stores an opaque stable subject id established by a verified product
