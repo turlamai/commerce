@@ -21,8 +21,10 @@
          racket/port
          permit/envelope
          permit/issuer
+         "evidence.rkt"
          "permit.rkt"
          "storage.rkt"
+         "private/journal-model.rkt"
          "private/model.rkt"
          "private/time.rkt")
 
@@ -36,7 +38,8 @@
 (struct issuance-worker
   (catalog issuer private-key key-id trust-store clock
            owner lease-seconds transient-backoff-seconds
-           operator-backoff-seconds claim-window-seconds))
+           operator-backoff-seconds claim-window-seconds
+           evidence-verifier))
 
 ;; disposition is 'completed, 'released, or 'lease-lost. A released result
 ;; names the typed error code that future operators will see on the outbox
@@ -61,7 +64,8 @@
          #:lease-seconds [lease-seconds 30]
          #:transient-backoff-seconds [transient-backoff-seconds 30]
          #:operator-backoff-seconds [operator-backoff-seconds 3600]
-         #:claim-window-seconds [claim-window-seconds 2592000])
+         #:claim-window-seconds [claim-window-seconds 2592000]
+         #:evidence-verifier [evidence-verifier #f])
   (unless (permit-policy-catalog? catalog)
     (raise-argument-error
      'make-issuance-worker "permit-policy-catalog?" catalog))
@@ -94,9 +98,17 @@
   (unless (exact-positive-integer? claim-window-seconds)
     (raise-argument-error
      'make-issuance-worker "exact-positive-integer?" claim-window-seconds))
+  (unless (or (not evidence-verifier)
+              (issuance-evidence-verifier? evidence-verifier))
+    (raise-argument-error
+     'make-issuance-worker
+     "(or/c #f issuance-evidence-verifier?) — production assemblies must
+supply the ADR-0020 evidence verifier"
+     evidence-verifier))
   (issuance-worker catalog issuer private-key key-id trust-store clock
                    owner lease-seconds transient-backoff-seconds
-                   operator-backoff-seconds claim-window-seconds))
+                   operator-backoff-seconds claim-window-seconds
+                   evidence-verifier))
 
 ;; Deterministic lineage ids. The same issuer, subject, and Offer must
 ;; always derive the same entitlement id, and one revision of that lineage
@@ -119,6 +131,14 @@
        (string-append "commerce-credential-v1\x00" entitlement-id
                       "\x00" (number->string revision))))))
   (string-append "cred-" (substring digest 0 32)))
+
+(define (raise-commerce code message [data (hash)])
+  (raise
+   (exn:fail:commerce
+    message
+    (current-continuation-marks)
+    code
+    data)))
 
 (define (released-result error-code)
   (issuance-result 'released #f error-code #f #f #f))
@@ -172,6 +192,23 @@
     (released-result (exn:fail:commerce-code failure)))
   (with-handlers
       ([exn:fail:commerce? release-failure!])
+    ;; ADR-0020 verified-evidence boundary: never sign a grant whose journal
+    ;; row the issuer cannot re-authenticate offline. Withdrawals intentionally
+    ;; skip re-verification — a forged refund can only deny service (revoke a
+    ;; lineage that a verified grant created), never mint rights; every
+    ;; refusal below is a typed deterministic release, never a retry storm or
+    ;; a signature.
+    (define verifier (issuance-worker-evidence-verifier worker))
+    (when (and verifier (not (eq? action 'withdraw)))
+      (define record
+        (storage-journal-sequence-ref
+         storage (issuance-outbox-item-source-sequence item)))
+      (unless record
+        (raise-commerce
+         'evidence-unverifiable
+         "claimed work references a journal row that no longer resolves"
+         (hash 'sequence (issuance-outbox-item-source-sequence item))))
+      (verify-issuance-evidence! verifier record offer-id))
     (define policy
       (permit-policy-for-offer (issuance-worker-catalog worker) offer-id))
     (define subject-type
