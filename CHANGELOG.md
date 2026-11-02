@@ -6,6 +6,12 @@ All notable changes to Commerce are documented here.
 
 ### Fixed
 
+- Import `storage-close` explicitly in the hosted proof HTTP example and
+  its regression suite. The SQLite backend module does not re-export this
+  lifecycle operation; the missing binding previously prevented package
+  setup and every CI leg from reaching the hosted admission tests. No
+  authentication, signing, request scope or payment behavior changes.
+
 - Correct outdated first-product roadmap and bilingual README claims: issue #1
   and PR #2 are closed/merged, while merchant approval, production signer
   authorization and live evidence remain open gates. Add a root confidential

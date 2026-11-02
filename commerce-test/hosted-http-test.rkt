@@ -8,6 +8,7 @@
          commerce/hosted-auth
          commerce/hosted-http
          commerce/hosted-replay/sqlite
+         (only-in commerce/storage storage-close)
          commerce/storage/sqlite)
 
 (define-values (_private-key public-key) (generate-ed25519-keypair))

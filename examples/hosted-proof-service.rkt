@@ -8,6 +8,7 @@
   (require commerce/hosted-http
            commerce/hosted-registry
            commerce/hosted-replay/sqlite
+           (only-in commerce/storage storage-close)
            commerce/storage/sqlite
            permit/trust
            racket/file)
