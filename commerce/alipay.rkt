@@ -10,6 +10,7 @@
  make-alipay-page-pay-parameters
  make-alipay-trade-query-parameters
  verify-alipay-trade-query-response
+ verify-alipay-signed-api-response
  alipay-cny->fen
  (struct-out alipay-binding)
  alipay-confirmed-order?
@@ -298,7 +299,7 @@
 ;; Accept precisely { "alipay_trade_query_response": {...}, "sign": "..." }.
 ;; Certificate-mode response metadata is NOT admitted in this public-key
 ;; mode, so it must not be silently interpreted as public-key mode.
-(define (query-response-signed-fragment raw)
+(define (query-response-signed-fragment raw #:node-name [node-name "alipay_trade_query_response"])
   (unless (bytes? raw)
     (raise-argument-error 'verify-alipay-trade-query-response "bytes?" raw))
   (when (> (bytes-length raw) 65536)
@@ -308,9 +309,17 @@
                      (lambda (_) (fail 'alipay-query-invalid
                                        "Alipay query response is not UTF-8"))])
       (bytes->string/utf-8 raw)))
+  (unless (member node-name
+                  '("alipay_trade_query_response"
+                    "alipay_trade_refund_response"
+                    "alipay_trade_fastpay_refund_query_response"))
+    (fail 'alipay-query-invalid "unsupported Alipay signed response node"))
   (define prefix
     (regexp-match-positions
-     #px"^[ \t\r\n]*\\{[ \t\r\n]*\"alipay_trade_query_response\"[ \t\r\n]*:"
+     (pregexp
+      (string-append "^[ \t\r\n]*\\{[ \t\r\n]*\""
+                     (regexp-quote node-name)
+                     "\"[ \t\r\n]*:"))
      txt))
   (unless prefix
     (fail 'alipay-query-invalid "missing signed Alipay query response"))
@@ -351,12 +360,9 @@
     (fail 'alipay-query-invalid "unexpected Alipay response envelope"))
   (values (substring txt begin* end*) (cadr matches)))
 
-(define (verify-alipay-trade-query-response raw public-key-pem binding)
-  (unless (alipay-binding? binding)
-    (raise-argument-error 'verify-alipay-trade-query-response
-                          "alipay-binding?" binding))
+(define (verify-alipay-signed-api-response raw public-key-pem node-name)
   (define-values (content sign)
-    (query-response-signed-fragment raw))
+    (query-response-signed-fragment raw #:node-name node-name))
   (define authentic?
     (with-handlers ([exn:fail? (lambda (_) #f)])
       (digest/verify
@@ -367,14 +373,23 @@
        #:pad 'pkcs1-v1.5)))
   (unless authentic?
     (fail 'alipay-query-signature-invalid
-          "invalid signed Alipay trade query response"))
+          "invalid signed Alipay API response"))
   (define decoded
     (with-handlers ([exn:fail?
                      (lambda (_) (fail 'alipay-query-invalid
-                                       "invalid signed Alipay query JSON"))])
+                                       "invalid signed Alipay API JSON"))])
       (string->jsexpr content)))
   (unless (hash? decoded)
-    (fail 'alipay-query-invalid "Alipay query result is not an object"))
+    (fail 'alipay-query-invalid "Alipay signed API result is not an object"))
+  decoded)
+
+(define (verify-alipay-trade-query-response raw public-key-pem binding)
+  (unless (alipay-binding? binding)
+    (raise-argument-error 'verify-alipay-trade-query-response
+                          "alipay-binding?" binding))
+  (define decoded
+    (verify-alipay-signed-api-response
+     raw public-key-pem "alipay_trade_query_response"))
   (define (required name)
     (define value (hash-ref decoded name #f))
     (unless (nonblank? value)

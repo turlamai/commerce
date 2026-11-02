@@ -58,12 +58,26 @@ All modules remain **unapproved for real merchant use until CI and admission**.
   deployed reverse-proxy protection and real environment traffic proof.
   `examples/alipay-service.rkt` provides the loopback-only HTTP process;
   it is not a production deployment playbook by itself.
-- `alipay.trade.refund`, refund status querying, partial-refund semantics,
-  cumulative refund accounting and the full paid/refunded state model.
-- Full end-to-end integration, operator runbook and accepted merchant
-  credential evidence. The `alipay-confirmed-order` struct is explicitly
-  a **trusted-service input** until a real signed query adapter enforces it;
-  do not build it from user requests, JSON, test fixtures, or a callback.
+- `commerce/alipay/refund` implements signed full-amount refund-request
+  parameters and independently signed refund-query verification. On explicit
+  `REFUND_SUCCESS`, matching order, request ID, and original amount, the
+  trusted operator may call `journal-alipay-full-refund!` to durably record
+  the exact signed query bytes. Stable event IDs make identical replay
+  idempotent; the ordinary projector/outbox subsequently handles withdrawal.
+  **This does not initiate a provider refund or expose a public refund endpoint.**
+  The operator-authorized network call, durable request-state machine, retry
+  schedule, and verified live merchant flows are still missing. `code=10000`
+  alone never proves refund success; absent signed `gmt_refund_pay` cannot
+  be replaced with a local receive timestamp.
+- Partial refunds and the cumulative refund ledger are **not supported**:
+  current Commerce's binary refunded projection cannot faithfully represent
+  them. Any partial-refund request is rejected. Do not issue a Permit
+  withdrawal from a pending, failed, or partial refund.
+- Full end-to-end production integration, an operator refund execution
+  runbook, and accepted merchant credential evidence. Confirmed payments
+  must come from the authenticated active-query and callback boundary;
+  never construct trusted payment facts from browser requests or callbacks
+  alone.
 
 ## Threat and readiness checks
 
@@ -87,7 +101,7 @@ manual operator retry. Do not count source-level tests as a live payment.
 
 ```sh
 raco pkg install --auto --no-docs --name commerce --link
-raco test commerce-test/alipay-test.rkt
+raco test commerce-test/alipay-test.rkt commerce-test/alipay-refund-test.rkt
 raco test -p commerce
 raco setup --check-pkg-deps commerce
 ```
