@@ -97,6 +97,14 @@ All notable changes to Commerce are documented here.
 
 ### Added
 
+- Add an operator-only, explicitly provisioned SQLite full-refund operation
+  ledger for Alipay (#23). Record a unique order/request/approval binding,
+  durably mark the first money-moving dispatch `unknown` before calling a
+  trusted transport, never resend unknown outcomes, and record `confirmed`
+  only after signed full-refund query evidence is journaled. Includes synthetic
+  crash/timeout/replay/authorization tests; no live merchant or refund action.
+
+
 - Add ADR-0019 strict, operator-owned provider admission manifests and a
   pre-binding Alipay checkout guard. A checkout is refused unless an approved,
   unexpired merchant/environment/Offer capability with exact price, currency,
