@@ -3,7 +3,8 @@
 (require rackunit
          racket/file
          racket/list
-         file/sha1
+         crypto
+         crypto/libcrypto
          commerce
          commerce/provider
          commerce/journal
@@ -48,7 +49,9 @@
 
 (define (payment raw event-id kind)
   (make-verified-payment-event
-   "mock" event-id (bytes->hex-string (sha256-bytes raw)) kind
+   "mock" event-id (bytes->hex-string
+   (parameterize ([crypto-factories (list libcrypto-factory)])
+     (digest 'sha256 raw))) kind
    "synthetic-order" "movebit-pro-test-only" "account-001"
    (money "CNY" 1234) 1793692800))
 
