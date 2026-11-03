@@ -154,8 +154,10 @@
      (storage-project-next! storage #:processed-at 1793692803)
      (check-true (order-projection-refunded?
                   (storage-order-ref storage "alipay" "fixture-order")))
+     ;; A projected refund also blocks a fresh dispatch at the paid-order
+     ;; guard, even before the operation ledger is consulted.
      (failed-with?
-      'alipay-refund-repeat-dispatch
+      'alipay-refund-order-unpaid
       (lambda () (send db storage (lambda _ (void))))))))
 
 (test-case "unauthorized, second request ID or forged query cannot withdraw"
