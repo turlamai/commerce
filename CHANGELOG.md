@@ -97,6 +97,22 @@ All notable changes to Commerce are documented here.
 
 ### Added
 
+- Return an independently verified, signed withdrawal revision from the
+  hosted proof endpoint, always as denied state, so trusted product backends
+  can pin refund high-water marks. Add a durable SQLite consumer watermark
+  that re-verifies Permit envelopes, rejects lower revisions and changed
+  entitlement identities, and fails closed on missing storage (#21). Racket
+  reference integration only; Publy TypeScript adoption remains separate.
+
+
+- Add a product-neutral, authenticated server-side purchase progress read
+  (#27). It checks the exact stored provider/order/product/Offer/subject
+  binding before returning nonauthoritative workflow states, distinguishes
+  pending payment, pending issuance and unprojected refund, and never emits
+  a paid flag, claim token or product authorization. Product-owned import
+  confirmation and public HTTP integration remain separate.
+
+
 - Add an operator-only, explicitly provisioned SQLite full-refund operation
   ledger for Alipay (#23). Record a unique order/request/approval binding,
   durably mark the first money-moving dispatch `unknown` before calling a
