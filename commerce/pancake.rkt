@@ -27,6 +27,10 @@
  pancake-webhook-signature-timestamp-ms
  verify-pancake-webhook
  verify-pancake-webhook-signature
+ verify-pancake-refund-webhook
+ pancake-refund-payment-event
+ strict-display-amount->minor
+ (struct-out pancake-refund)
  pancake-api-endpoint
  (struct-out pancake-order-binding)
  pancake-merchant-client?
@@ -922,3 +926,121 @@ GRAPHQL
    expected-money
    occurred-at
    #:paid-through #f))
+
+;; ---- Signed refund events (issue #40) -----------------------------------
+
+;; A verified refund.succeeded webhook. `refunded` must equal the original
+;; charged amount for Commerce to journal it: the durable model is binary
+;; paid/refunded and partial refunds are refused fail-closed at the edge.
+(struct pancake-refund
+  (order-id event-id currency refunded-minor original-charged-minor
+   external-id occurred-at raw-body payload-digest))
+
+;; The refund event reuses the payment webhook's signature scheme, envelope
+;; and retry semantics, so authenticity comes from the same core. Everything
+;; after authentication is strict field validation: no money-moving call is
+;; ever initiated from here — Commerce records signed outcomes only.
+;; The display-amount exponent comes from the durable checkout binding via
+;; the caller, keeping refund parsing on the same precision discipline as
+;; payment ingestion.
+(define (verify-pancake-refund-webhook
+         raw-body
+         signature-header
+         #:environment environment
+         #:keyring [keyring default-pancake-webhook-keyring]
+         #:currency-exponent currency-exponent)
+  (define webhook
+    (verify-pancake-webhook-signature
+     raw-body signature-header
+     #:environment environment
+     #:keyring keyring))
+  (unless (equal? (pancake-webhook-event-type webhook) "refund.succeeded")
+    (raise-commerce
+     'pancake-refund-event-invalid
+     "Pancake refund ingestion requires a signed refund.succeeded event"
+     (hash 'event-type (pancake-webhook-event-type webhook))))
+  (define data (pancake-webhook-data webhook))
+  (unless (hash? data)
+    (raise-commerce
+     'pancake-refund-invalid
+     "verified Pancake refund payload data is not an object"
+     (hash)))
+  (define (required-field name)
+    (define value (hash-ref data name #f))
+    (unless (and (string? value) (positive? (string-length value)))
+      (raise-commerce
+       'pancake-refund-invalid
+       "verified Pancake refund payload is missing a required field"
+       (hash 'field name)))
+    value)
+  (define order-id (required-field 'orderId))
+  (define refund-status (required-field 'refundStatus))
+  (unless (equal? refund-status "succeeded")
+    ;; refund.failed and any other status move no money: nothing to journal.
+    (raise-commerce
+     'pancake-refund-not-succeeded
+     "verified Pancake refund is not in succeeded state"
+     (hash 'refund-status refund-status)))
+  (define external-id (required-field 'refundTicketMerchantExternalId))
+  (when (> (string-length external-id) 128)
+    (raise-commerce
+     'pancake-refund-invalid
+     "Pancake refund external id exceeds the provider bound"
+     (hash 'field 'refundTicketMerchantExternalId)))
+  (unless (exact-nonnegative-integer? currency-exponent)
+    (raise-argument-error
+     'verify-pancake-refund-webhook
+     "exact-nonnegative-integer? for currency-exponent" currency-exponent))
+  (define currency (required-field 'currency))
+  (define refunded-minor
+    (strict-display-amount->minor
+     (required-field 'refundedAmount)
+     currency-exponent))
+  (define charged-minor
+    (strict-display-amount->minor
+     (required-field 'originalChargedAmount)
+     currency-exponent))
+  ;; Commerce journals full refunds only: a partial refund cannot flip the
+  ;; binary refunded projection, so the edge refuses it durably instead.
+  (unless (= refunded-minor charged-minor)
+    (raise-commerce
+     'pancake-refund-partial-unsupported
+     "partial Pancake refunds are not supported by the durable model"
+     (hash 'refunded refunded-minor 'charged charged-minor)))
+  (define occurred-at
+    (webhook-occurred-at (required-field 'refundCreatedAt)))
+  (pancake-refund
+   order-id
+   (pancake-webhook-event-id webhook)
+   currency
+   refunded-minor
+   charged-minor
+   external-id
+   occurred-at
+   (pancake-webhook-raw-body webhook)
+   (pancake-webhook-payload-digest webhook)))
+
+;; Mints the canonical payment-refunded event from a verified refund and the
+;; durable binding's subject facts, mirroring the one-time payment path: the
+;; adapter owns provider-native construction, the edge owns expectations.
+(define (pancake-refund-payment-event refund offer-id subject-id amount)
+  (unless (pancake-refund? refund)
+    (raise-argument-error 'pancake-refund-payment-event "pancake-refund?" refund))
+  (unless (stable-id? offer-id)
+    (raise-argument-error
+     'pancake-refund-payment-event "stable kebab-case offer identifier" offer-id))
+  (unless (opaque-id? subject-id)
+    (raise-argument-error
+     'pancake-refund-payment-event "non-empty subject identifier" subject-id))
+  (unless (money? amount)
+    (raise-argument-error 'pancake-refund-payment-event "money?" amount))
+  (make-verified-payment-event
+   "pancake"
+   (pancake-refund-event-id refund)
+   (pancake-refund-payload-digest refund)
+   'payment-refunded
+   (pancake-refund-order-id refund)
+   offer-id
+   subject-id
+   amount
+   (pancake-refund-occurred-at refund)))
