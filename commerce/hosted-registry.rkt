@@ -11,7 +11,10 @@
          racket/list
          permit/private/json)
 
-(struct hosted-service-registry (keys scopes) #:transparent)
+;; A transparent struct leaks file-backed HMAC secrets through ~v/~s logging.
+;; Keep the service registry opaque; only the explicit trusted key resolver
+;; should provide those bytes to the authenticator.
+(struct hosted-service-registry (keys scopes))
 
 (define (exact-keys? value names)
   (and (hash? value)
