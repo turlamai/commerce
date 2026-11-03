@@ -66,10 +66,13 @@ Remaining limitations, recorded honestly:
   payment is minted for. That is the product's identity boundary (issue
   #21 owns the account mapping), not something Commerce can authenticate
   on its own.
-- Pancake amounts are anchored to the Offer price, not to the webhook
-  body (the webhook does not carry the payment amount); the signed
+- Pancake amounts are anchored to the Offer price, not to the payment
+  webhook body (the body does not carry the payment amount); the signed
   webhook, journal event identity, binding, and catalog price are the
-  anchors. Pancake has no refund flow to verify yet.
+  anchors. Pancake refunds verify offline through the signed
+  `refund.succeeded` webhook the same way (issue #40); Commerce never
+  initiates refunds — the REST refund-ticket endpoints stay out of
+  scope, and partial refunds fail closed at the edge.
 - Providers without offline verification for a row kind still fail
   closed when a verifier is wired (`evidence-provider-unsupported`,
   `evidence-kind-unsupported`); running without a verifier remains
