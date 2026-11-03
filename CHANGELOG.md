@@ -6,6 +6,20 @@ All notable changes to Commerce are documented here.
 
 ### Security
 
+- Close the remaining verified-evidence forgery gaps in the issuer role
+  (issue #38): grants and withdrawals now fence the claimed outbox
+  subject against the journaled event, re-derive offer/subject from the
+  append-only checkout binding (`evidence-binding-missing` /
+  `evidence-binding-mismatch`), and withdrawal intents re-verify the
+  journaled signed full-refund query proof — request id recovered from
+  the `refund:<id>` event id, order/amount/settlement time cross-checked
+  against the binding and the signed bytes — closing the forged-refund
+  denial-of-service window. A compromised edge can no longer redirect a
+  genuine payment or refund to another subject via forged journal rows,
+  retargeted outbox rows, or a rewritten order projection. Creating new
+  checkouts for arbitrary subjects remains the product identity
+  boundary's responsibility (issue #21), not Commerce's.
+
 - Enforce the ADR-0020 verified-evidence boundary in the issuer role
   (issue #10): journal rows gain a `signature_evidence` column (schema
   v8), the Pancake edge journals the exact signature header it
