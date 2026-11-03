@@ -364,6 +364,14 @@
         #:keyring
         (issuance-evidence-verifier-pancake-keyring verifier)))
      (pancake-webhook-matches! webhook record)
+     (define order-id
+       (hash-ref (pancake-webhook-data webhook) 'orderId #f))
+     (unless (and (string? order-id) (positive? (string-length order-id)))
+       (raise-commerce
+        'evidence-field-mismatch
+        "verified Pancake webhook body does not name a checkout order"
+        (hash 'field 'data.orderId
+              'sequence (journal-record-sequence record))))
      (define lookup
        (issuance-evidence-verifier-binding-lookup verifier))
      (unless (procedure? lookup)
@@ -372,7 +380,7 @@
         "no checkout binding lookup is configured for evidence re-verification"
         (hash 'sequence (journal-record-sequence record))))
      (define binding
-       (lookup (hash-ref (pancake-webhook-data webhook) 'orderId)))
+       (lookup order-id))
      (unless (checkout-binding? binding)
        (raise-commerce
         'evidence-binding-missing
