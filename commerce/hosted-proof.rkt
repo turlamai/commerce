@@ -70,6 +70,16 @@
             (hasheq 'status "stale-revision")]
            [(storage-unresolved-refund? storage subject-id offer-id)
             (hasheq 'status "refund-pending")]
+           [(eq? (entitlement-revision-action revision) 'withdraw)
+            ;; The latest withdrawal must be exportable as a VERIFIED signed
+            ;; high-water revision. Otherwise an offline hosted consumer can
+            ;; never pin the refund revision and may accept a replayed grant.
+            ;; This status is always a DENIAL, even though it carries proof.
+            (hasheq 'status "recorded-withdrawal"
+                    'entitlement_id
+                    (entitlement-revision-entitlement-id revision)
+                    'revision (entitlement-revision-revision revision)
+                    'credential (envelope->jsexpr envelope))]
            [(not (hash-ref policy 'usable?))
             (hasheq 'status "not-usable"
                     'reasons (map symbol->string (hash-ref policy 'reasons)))]
@@ -144,9 +154,10 @@
      storage #:issuer issuer #:subject-type subject-type #:subject-id subject-id
      #:offer-id offer-id #:authorize authorize-scope
      #:minimum-revision minimum #:expected-entitlement-id expected-id))
-  (if (equal? (hash-ref snapshot 'status) "recorded-grant")
+  (if (member (hash-ref snapshot 'status)
+              '("recorded-grant" "recorded-withdrawal"))
       (verify-snapshot-record storage snapshot issuer subject-type subject-id offer-id
                               product-id trust-store at)
-      ;; Never promote a ledger-only withdrawal, absent, pending, stale,
-      ;; or changed-lineage result into signed authorization.
+      ;; Never promote absent, pending, stale, or changed-lineage results
+      ;; into signed authorization.
       snapshot))
