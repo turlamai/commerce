@@ -95,3 +95,22 @@
      (write-bytes-file config #"{\"version\":1,\"services\":[]}")
      (check-exn exn:fail?
                 (lambda () (read-hosted-service-registry config))))))
+
+(test-case "service registry diagnostics never serialize HMAC key bytes"
+  (with-registry-files
+   (lambda (dir)
+     (define key-file (build-path dir "private.key"))
+     (define config (build-path dir "registry.json"))
+     (define secret #"commerce-hmac-secret-must-not-leak-2026")
+     (write-bytes-file key-file secret)
+     (write-registry config (list (make-service key-file)))
+     (define registry (read-hosted-service-registry config))
+     ;; The authenticated runtime still receives the exact secret, but
+     ;; ordinary logging/debugging of registry values must not reveal it.
+     (check-equal?
+      (hosted-service-registry-resolve-key registry "publy-backend") secret)
+     (for ([fmt (in-list '("~v" "~s" "~a"))])
+       (check-false
+        (regexp-match?
+         #rx"commerce-hmac-secret-must-not-leak-2026"
+         (format fmt registry)))))))
