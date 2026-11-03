@@ -12,7 +12,7 @@
          permit/credential
          permit/envelope
          permit/trust
-         "../../private/model.rkt")
+         "../private/model.rkt")
 
 (define (refuse code)
   (raise
