@@ -96,27 +96,6 @@
        raw-body signature-header
        #:environment (webhook-endpoint-environment endpoint)
        #:keyring (webhook-endpoint-keyring endpoint)))
-    (define binding
-      ((webhook-endpoint-binding-lookup endpoint)
-       (hash-ref (pancake-webhook-data webhook) 'orderId)))
-    (unless binding
-      (raise-commerce
-       'unknown-checkout-binding
-       "webhook order has no durable checkout binding"
-       (hash)))
-    (define event
-      (verify-pancake-onetime-order
-       (webhook-endpoint-merchant-client endpoint) webhook
-       ;; The durable expectation is provider-neutral; the server owns the
-       ;; adaptation to the provider-native binding shape.
-       (pancake-order-binding
-        (checkout-binding-merchant-external-id binding)
-        (checkout-binding-product-id binding)
-        (checkout-binding-offer-id binding)
-        (checkout-binding-subject-id binding)
-        (money (checkout-binding-currency binding)
-               (checkout-binding-amount-minor-units binding))
-        (checkout-binding-currency-exponent binding))))
     ;; Journal the exact signature evidence the issuer role needs to
     ;; re-verify this row offline (ADR-0020): the environment tag selects the
     ;; keyring entry and the header carries the t/v1 fields it authenticated.
@@ -126,15 +105,116 @@
                (symbol->string (webhook-endpoint-environment endpoint))
                'signature_header signature-header)))
     (define acceptance
-      (journal-accept! storage
-                       (pancake-webhook-raw-body webhook) event
-                       #:received-at (current-seconds)
-                       #:evidence signature-evidence))
+      (cond
+        [(equal? (pancake-webhook-event-type webhook) "order.completed")
+         (journal-accept!
+          storage
+          (pancake-webhook-raw-body webhook)
+          (verified-payment-webhook-event endpoint webhook)
+          #:received-at (current-seconds)
+          #:evidence signature-evidence)]
+        [(equal? (pancake-webhook-event-type webhook) "refund.succeeded")
+         (journal-accept!
+          storage
+          (pancake-webhook-raw-body webhook)
+          (verified-refund-webhook-event endpoint webhook signature-header)
+          #:received-at (current-seconds)
+          #:evidence signature-evidence)]
+        [else
+         (raise-commerce
+          'pancake-event-unsupported
+          "signed Pancake event type has no Commerce ingestion path"
+          (hash 'event-type (pancake-webhook-event-type webhook)))]))
     (http-error
      200
      (hash 'accepted #t
            'disposition
            (symbol->string (journal-acceptance-disposition acceptance))))))
+
+;; The one-time payment path: resolve the durable binding, verify the active
+;; provider order, and mint the canonical payment-succeeded event from
+;; server-side facts only.
+(define (verified-payment-webhook-event endpoint webhook)
+  (define binding
+    ((webhook-endpoint-binding-lookup endpoint)
+     (hash-ref (pancake-webhook-data webhook) 'orderId)))
+  (unless binding
+    (raise-commerce
+     'unknown-checkout-binding
+     "webhook order has no durable checkout binding"
+     (hash)))
+  (verify-pancake-onetime-order
+   (webhook-endpoint-merchant-client endpoint) webhook
+   ;; The durable expectation is provider-neutral; the server owns the
+   ;; adaptation to the provider-native binding shape.
+   (pancake-order-binding
+    (checkout-binding-merchant-external-id binding)
+    (checkout-binding-product-id binding)
+    (checkout-binding-offer-id binding)
+    (checkout-binding-subject-id binding)
+    (money (checkout-binding-currency binding)
+           (checkout-binding-amount-minor-units binding))
+    (checkout-binding-currency-exponent binding))))
+
+;; The refund path: verify the signed refund.succeeded outcome against the
+;; durable binding and the paid projection. No provider call is made — the
+;; signed webhook, the append-only binding, and the journaled payment are the
+;; facts. Partial refunds fail closed: the durable model is binary paid/
+;; refunded, and a partial refund cannot flip it honestly.
+(define (verified-refund-webhook-event endpoint webhook signature-header)
+  (define storage (webhook-endpoint-storage endpoint))
+  (define binding
+    ((webhook-endpoint-binding-lookup endpoint)
+     (hash-ref (pancake-webhook-data webhook) 'orderId)))
+  (unless binding
+    (raise-commerce
+     'unknown-checkout-binding
+     "refund order has no durable checkout binding"
+     (hash)))
+  ;; Re-verification through the refund parser proves the refund.succeeded
+  ;; event type and every amount field against the already-authenticated
+  ;; body bytes; the header is the same one the payment path trusted.
+  (define refund
+    (verify-pancake-refund-webhook
+     (pancake-webhook-raw-body webhook)
+     signature-header
+     #:environment (webhook-endpoint-environment endpoint)
+     #:keyring (webhook-endpoint-keyring endpoint)
+     #:currency-exponent (checkout-binding-currency-exponent binding)))
+  (define expected-amount
+    (money (checkout-binding-currency binding)
+           (checkout-binding-amount-minor-units binding)))
+  (unless (and (string=? (pancake-refund-currency refund)
+                         (money-currency expected-amount))
+               (= (pancake-refund-refunded-minor refund)
+                  (money-minor-units expected-amount))
+               (= (pancake-refund-original-charged-minor refund)
+                  (money-minor-units expected-amount)))
+    (raise-commerce
+     'pancake-refund-amount-mismatch
+     "Pancake refund amounts do not match the durable binding"
+     (hash 'field 'amount)))
+  (define order
+    (storage-order-ref storage
+                       "pancake"
+                       (checkout-binding-merchant-external-id binding)))
+  (unless (and order
+               (order-projection-paid? order)
+               (not (order-projection-refunded? order))
+               (equal? (order-projection-offer-id order)
+                       (checkout-binding-offer-id binding))
+               (equal? (order-projection-subject-id order)
+                       (checkout-binding-subject-id binding))
+               (equal? (order-projection-amount order) expected-amount))
+    (raise-commerce
+     'pancake-refund-order-unpaid
+     "refund arrived for an order that is not a paid, unrefunded match"
+     (hash 'order-id (checkout-binding-merchant-external-id binding))))
+  (pancake-refund-payment-event
+   refund
+   (checkout-binding-offer-id binding)
+   (checkout-binding-subject-id binding)
+   expected-amount))
 
 ;; Authentication-family failures: the request never proved itself, so it
 ;; gets 401 and no evidence is created. Semantic mismatches between the

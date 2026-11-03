@@ -343,12 +343,6 @@
           (eq? (payment-event-kind event) 'payment-refunded))
      (verify-alipay-refund! verifier record)]
     [(string=? (payment-event-provider event) "pancake")
-     (unless (eq? (payment-event-kind event) 'payment-succeeded)
-       (raise-commerce
-        'evidence-kind-unsupported
-        "no offline refund verification exists for Pancake rows"
-        (hash 'kind (payment-event-kind event)
-              'sequence (journal-record-sequence record))))
      (define raw-evidence (journal-record-evidence record))
      (unless (bytes? raw-evidence)
        (raise-commerce
@@ -364,6 +358,13 @@
         #:keyring
         (issuance-evidence-verifier-pancake-keyring verifier)))
      (pancake-webhook-matches! webhook record)
+     (define lookup
+       (issuance-evidence-verifier-binding-lookup verifier))
+     (unless (procedure? lookup)
+       (raise-commerce
+        'evidence-verifier-unconfigured
+        "no checkout binding lookup is configured for evidence re-verification"
+        (hash 'sequence (journal-record-sequence record))))
      (define order-id
        (hash-ref (pancake-webhook-data webhook) 'orderId #f))
      (unless (and (string? order-id) (positive? (string-length order-id)))
@@ -372,20 +373,60 @@
         "verified Pancake webhook body does not name a checkout order"
         (hash 'field 'data.orderId
               'sequence (journal-record-sequence record))))
-     (define lookup
-       (issuance-evidence-verifier-binding-lookup verifier))
-     (unless (procedure? lookup)
-       (raise-commerce
-        'evidence-verifier-unconfigured
-        "no checkout binding lookup is configured for evidence re-verification"
-        (hash 'sequence (journal-record-sequence record))))
-     (define binding
-       (lookup order-id))
+     (define binding (lookup order-id))
      (unless (checkout-binding? binding)
        (raise-commerce
         'evidence-binding-missing
         "verified Pancake webhook order has no durable checkout binding"
         (hash 'sequence (journal-record-sequence record))))
+     (define expected-event-type
+       (if (eq? (payment-event-kind event) 'payment-refunded)
+           "refund.succeeded"
+           "order.completed"))
+     (unless (equal? (pancake-webhook-event-type webhook)
+                     expected-event-type)
+       (raise-commerce
+        'evidence-field-mismatch
+        "verified Pancake webhook event type does not match the journal row"
+        (hash 'field 'event-type
+              'expected expected-event-type
+              'actual (pancake-webhook-event-type webhook)
+              'sequence (journal-record-sequence record))))
+     (when (eq? (payment-event-kind event) 'payment-refunded)
+       ;; The journaled refund must be a full refund of exactly the sold
+       ;; price: parse both refund amounts from the verified bytes and hold
+       ;; them against the binding, mirroring the edge's fail-closed rule.
+       (define data (pancake-webhook-data webhook))
+       (define (amount-field name)
+         (define value (hash-ref data name #f))
+         (unless (and (string? value) (positive? (string-length value)))
+           (raise-commerce
+            'evidence-field-mismatch
+            "verified Pancake refund body is missing a required amount"
+            (hash 'field name
+                  'sequence (journal-record-sequence record))))
+         value)
+       (define binding-amount
+         (money (checkout-binding-currency binding)
+                (checkout-binding-amount-minor-units binding)))
+       (for ([name (in-list '(refundedAmount originalChargedAmount))])
+         (define minor
+           (strict-display-amount->minor
+            (amount-field name)
+            (checkout-binding-currency-exponent binding)))
+         (unless (and (= minor (money-minor-units (payment-event-amount event)))
+                      (= minor (money-minor-units binding-amount)))
+           (raise-commerce
+            'evidence-field-mismatch
+            "verified Pancake refund amount disagrees with the journal row or the binding"
+            (hash 'field name
+                  'sequence (journal-record-sequence record)))))
+       (unless (equal? (hash-ref data 'refundStatus #f) "succeeded")
+         (raise-commerce
+          'evidence-field-mismatch
+          "verified Pancake refund body is not a succeeded refund"
+          (hash 'field 'refundStatus
+                'sequence (journal-record-sequence record)))))
      (unless (and (string=? (checkout-binding-offer-id binding)
                             (payment-event-offer-id event))
                   (string=? (checkout-binding-subject-id binding)

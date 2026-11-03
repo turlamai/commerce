@@ -6,6 +6,18 @@ All notable changes to Commerce are documented here.
 
 ### Security
 
+- Add the Pancake signed refund flow (issue #40): the webhook edge now
+  dispatches on the verified event type and journals `refund.succeeded`
+  webhooks as `payment-refunded` rows with the same signature-evidence
+  envelope as payments — full-refund invariant enforced at the edge
+  (`refundedAmount == originalChargedAmount == binding amount`; partial
+  refunds and `refund.failed` refuse durably without a journal row).
+  The issuer re-verifies Pancake refund rows offline — signature from
+  journaled evidence, event-type fence, binding subject/offer, and both
+  refund amounts against the journal row and binding — replacing the
+  previous `evidence-kind-unsupported` fail-closed gap. Commerce never
+  initiates refunds; only signed outcomes are recorded.
+
 - Close the remaining verified-evidence forgery gaps in the issuer role
   (issue #38): grants and withdrawals now fence the claimed outbox
   subject against the journaled event, re-derive offer/subject from the
