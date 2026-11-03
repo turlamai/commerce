@@ -103,6 +103,14 @@ checkout, refund, or approved-merchant adapter. See the
 [Alipay integration boundary and release gate](alipay-vibe-pay.md);
 keep every unimplemented production capability disabled.
 
+## Alipay operator refund lifecycle
+
+The opt-in [ADR-0022](decisions/0022-alipay-refund-operations.md) operation
+ledger refuses a second full-refund dispatch for an uncertain merchant order.
+Only the existing independently authenticated signed refund query can complete
+an operation and journal a withdrawal. This is an operator-side library, not a
+live refund service or proof of approved merchant status.
+
 ## Provider-specific notes
 
 Pancake is the first production adapter because it supports individual
