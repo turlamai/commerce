@@ -53,6 +53,12 @@ product adds Commerce for checkout, payment evidence, issuance, and claim
 delivery, then authorizes locally only from the resulting verified Permit
 credential.
 
+The optional [product purchase progress read](purchase-progress.md) gives
+an authenticated product backend a scoped workflow state without a client paid
+flag or exposed claim token. A signed-credential-recorded status is **not**
+authorization; the product must still verify Permit. The service does not know
+whether a desktop client imported its credential.
+
 The product or an identity service supplies or establishes the opaque stable
 subject id. Email and provider customer ids are mappings, not authorization
 identities. Checkout redirects, claim tokens, and Commerce API responses are
