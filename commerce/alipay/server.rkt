@@ -10,14 +10,14 @@
  serve-alipay-webhook-endpoint)
 
 (require file/sha1
-         racket/date
          net/url
          web-server/http
          web-server/servlet-env
          "../alipay.rkt"
          "../journal.rkt"
          "../storage.rkt"
-         "../private/model.rkt")
+         "../private/model.rkt"
+         "../private/alipay-time.rkt")
 
 (struct alipay-webhook-endpoint
   (app-id seller-id public-key-pem query-order storage))
@@ -47,32 +47,9 @@
 (define (alipay-payment-epoch notification)
   (define found (assoc "gmt_payment" (alipay-notification-fields notification)))
   (define raw-time (and found (cdr found)))
-  (define parts
-    (and (string? raw-time)
-         (regexp-match
-          #px"^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})$"
-          raw-time)))
-  (unless parts
-    (problem/error 'alipay-order-mismatch))
-  (define nums (map string->number (cdr parts)))
-  (define-values (year month day hour minute second)
-    (apply values nums))
-  (unless (and (<= 2000 year 2100) (<= 1 month 12)
-               (<= 1 day 31) (<= 0 hour 23)
-               (<= 0 minute 59) (<= 0 second 59))
-    (problem/error 'alipay-order-mismatch))
-  (define instant
-    (with-handlers ([exn:fail? (lambda (_) (problem/error 'alipay-order-mismatch))])
-      (find-seconds second minute hour day month year #f)))
-  (define roundtrip (seconds->date instant #f))
-  (unless (and (= (date-year roundtrip) year)
-               (= (date-month roundtrip) month)
-               (= (date-day roundtrip) day)
-               (= (date-hour roundtrip) hour)
-               (= (date-minute roundtrip) minute)
-               (= (date-second roundtrip) second))
-    (problem/error 'alipay-order-mismatch))
-  (- instant (* 8 60 60)))
+  (with-handlers ([exn:fail?
+                   (lambda (_) (problem/error 'alipay-order-mismatch))])
+    (gmt8-wall-time->epoch raw-time)))
 
 (define (handle-alipay-webhook-post endpoint raw)
   (unless (alipay-webhook-endpoint? endpoint)
