@@ -152,6 +152,14 @@ The default `commerce` facade does not expose provider secrets, raw webhook
 acceptance, network listeners, databases, or Permit signing. Those capabilities
 belong to explicit server-side modules.
 
+## Hosted rights anti-rollback
+
+The pilot [hosted consumer watermark](docs/hosted-consumer-watermarks.md)
+records a verified signed grant/withdrawal revision durably and rejects
+stale or changed-lineage replays. Signed withdrawal evidence is a denial,
+not a feature grant. The initial consumer storage is Racket-only and has
+not been integrated or deployed with Publy's TypeScript backend.
+
 ## Product checkout/recovery progress
 
 The optional [authenticated product-scoped read](docs/purchase-progress.md)

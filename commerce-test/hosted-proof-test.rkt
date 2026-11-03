@@ -148,8 +148,12 @@
           (check-false
            (storage-unresolved-refund? storage "customer-001"
                                        "taskly-pro-lifetime"))
-          (check-equal?
-           (hash-ref (proof #:minimum 1 #:lineage entitlement-id) 'status)
-           "recorded-withdrawal")))
+          (define revoked
+            (proof #:minimum 1 #:lineage entitlement-id))
+          (check-equal? (hash-ref revoked 'status) "recorded-withdrawal")
+          (check-equal? (hash-ref revoked 'revision) 1)
+          ;; Revocation is not authorization; it still carries genuine
+          ;; signed high-water evidence for consumer anti-rollback storage.
+          (check-true (hash? (hash-ref revoked 'credential)))))
       (lambda () (storage-close storage))))
    (lambda () (delete-directory/files dir))))
