@@ -138,6 +138,13 @@ Commerce 只保存确定性编排需要的标识、投影和审计证据。
 默认的 `commerce` facade 不暴露渠道密钥、原始 Webhook 接收、网络监听、数据库
 或 Permit 签名能力。这些能力必须从明确的服务端模块显式引入。
 
+## 托管权益防回滚
+
+新增[托管权益消费者持久化版本记录](docs/hosted-consumer-watermarks.md)：经 Permit
+验签的最新授权或撤回修订会写入受控 SQLite，拒绝旧版本回放、不同权益谱系替换。
+撤回凭证始终代表拒绝授权，并非付款成功标志。目前是 Racket 端参考实现，
+尚未接入 Publy 的 TypeScript 服务端，也不代表线上支付可用。
+
 ## 购买、签发与恢复状态
 
 新增[产品后端受控购买进度读取](docs/purchase-progress.md)，可区分等待支付、
