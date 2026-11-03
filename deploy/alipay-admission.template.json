@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "provider": "alipay",
+  "environment": "sandbox",
+  "merchant_app_id": "REPLACE_WITH_APPROVED_APP_ID",
+  "seller_id": "REPLACE_WITH_APPROVED_SELLER_ID",
+  "product_category": "REPLACE_WITH_APPROVED_PRODUCT_CATEGORY",
+  "admission_reference": "",
+  "cost_reference": "",
+  "checkout_api": "alipay.trade.page.pay",
+  "read_api": "alipay.trade.query",
+  "approved_at": 0,
+  "expires_at": 0,
+  "capabilities": [
+    {
+      "offer_id": "taskly-pro-lifetime",
+      "product_id": "taskly",
+      "method": "alipay",
+      "transaction_type": "one-time",
+      "currency": "CNY",
+      "amount_minor": 0,
+      "min_minor": 0,
+      "max_minor": 0
+    }
+  ]
+}

@@ -50,8 +50,11 @@ All modules remain **unapproved for real merchant use until CI and admission**.
 - A public, authenticated product checkout API: the current trusted
   `examples/alipay-checkout.rkt` generates a random `out_trade_no`,
   durably binds it before signing a browser-submittable HTML form, but
-  deliberately accepts prices only from the **operator**, not the public.
-  Production callers need reviewed server-side Offer pricing and identity.
+  now refuses to create an order unless a **private, time-limited**
+  ADR-0019 admission record exactly matches merchant, environment, Offer,
+  product, payment method, CNY amount and permitted transaction type.
+  This is an operator gate, **not** evidence that a merchant was approved.
+  A public product checkout still needs authenticated server-side identity.
 - Certificate-mode and key-rotation support: currently **RSA2 public-key
   mode only** with explicit sandbox and production isolation.
 - Automated missed-webhook reconciliation, timed worker retry schedules,
@@ -129,9 +132,21 @@ the Permit issuer signing key. Use the separately configured, approved
 `ALIPAY_ENV`, `ALIPAY_APP_ID`, `ALIPAY_SELLER_ID`,
 `ALIPAY_PRIVATE_KEY_PATH`, `ALIPAY_PUBLIC_KEY_PATH`,
 `COMMERCE_DATABASE_PATH`, `COMMERCE_HTTP_PORT`,
-`ALIPAY_NOTIFY_URL` and `ALIPAY_RETURN_URL`.
+`ALIPAY_NOTIFY_URL`, `ALIPAY_RETURN_URL` and
+`COMMERCE_PROVIDER_ADMISSION_PATH`.
 Use [the placeholder-only template](../deploy/alipay.env.example), never
-commit populated secret files.
+commit populated secret files. The
+[operator admission template](../deploy/alipay-admission.template.json)
+intentionally contains missing references and invalid amounts/expiry; it
+**cannot** authorize checkout unchanged. The operator must privately verify
+merchant approval, supported methods, costs, settlement and the exact
+reviewed Offer price before filling this deployment-owned record. A nonempty
+reference is an audit pointer, not cryptographic approval evidence.
+
+`commerce/admission` rejects missing/expired documents, duplicate JSON fields,
+unrecognized keys, wrong merchant app/seller, environment, transaction,
+product, Offer, currency, exact amount, unsupported Alipay contracts and
+out-of-range values. Refusal occurs before any order ID or binding is minted.
 
 The operator example (not a public price API) binds a **new random**
 merchant order to product, Offer, opaque subject and exact CNY fen before

@@ -40,6 +40,13 @@ approved evidence rather than inference:
    conversion, or order splitting; no implying recurring support a
    method does not have.
 
+The operator can encode the reviewed constraints in the private strict-JSON
+`commerce/admission` manifest and must retain the supporting approval and
+cost evidence outside Git. This enforces exact merchant/environment/Offer
+price and pre-checkout refusal; a syntactically complete manifest is still
+**not independent proof of merchant authorization**. The Alipay operator
+example refuses to mint a binding unless the manifest permits it.
+
 The filled record lives with the deployment that operates the adapter —
 it names real accounts and therefore never enters this repository. This
 repository records the discipline, the template, and the admission
