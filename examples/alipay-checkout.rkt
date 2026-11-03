@@ -12,6 +12,7 @@
          racket/string
          commerce
          commerce/alipay
+         commerce/admission
          commerce/private/alipay-time
          commerce/storage
          commerce/storage/sqlite)
@@ -69,12 +70,24 @@
        [(equal? env "production")
         "https://openapi.alipay.com/gateway.do"]
        [else (error 'alipay-checkout "ALIPAY_ENV must be sandbox or production")]))
+   ;; ADR-0019 gate: refuse before minting a checkout binding, loading the
+   ;; merchant private key, or presenting a browser-pay form. This private
+   ;; record is reviewed and provisioned by the operator, not the buyer.
+   (define app-id (required "ALIPAY_APP_ID"))
+   (define seller-id (required "ALIPAY_SELLER_ID"))
+   (authorize-provider-checkout!
+    (read-provider-admission (required "COMMERCE_PROVIDER_ADMISSION_PATH"))
+    #:provider "alipay" #:environment env
+    #:merchant-app-id app-id #:seller-id seller-id
+    #:product-id product-id #:offer-id offer-id
+    #:payment-method "alipay" #:transaction-type "one-time"
+    #:amount (money "CNY" amount))
    (define order-id
      (string-append "ali" (bytes->hex-string (crypto-random-bytes 16))))
    (define binding
      (alipay-binding
-      (required "ALIPAY_APP_ID")
-      (required "ALIPAY_SELLER_ID")
+      app-id
+      seller-id
       order-id offer-id subject-id (money "CNY" amount)))
    (define storage
      (open-sqlite-commerce-storage (required "COMMERCE_DATABASE_PATH")))
