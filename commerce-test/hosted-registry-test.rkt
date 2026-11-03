@@ -96,7 +96,6 @@
      (check-exn exn:fail?
                 (lambda () (read-hosted-service-registry config))))))
 
-
 (test-case "service registry diagnostics never serialize HMAC key bytes"
   (with-registry-files
    (lambda (dir)
