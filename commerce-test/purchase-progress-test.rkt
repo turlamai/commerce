@@ -2,6 +2,7 @@
 
 (require rackunit
          racket/file
+         racket/list
          file/sha1
          commerce
          commerce/provider
