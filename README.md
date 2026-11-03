@@ -152,6 +152,13 @@ The default `commerce` facade does not expose provider secrets, raw webhook
 acceptance, network listeners, databases, or Permit signing. Those capabilities
 belong to explicit server-side modules.
 
+## Product checkout/recovery progress
+
+The optional [authenticated product-scoped read](docs/purchase-progress.md)
+reports payment-processing, issuance, recorded credential and refund states.
+It never returns a client paid flag or authorizes features; the product owns
+identity, import confirmation and customer recovery.
+
 ## Alipay Vibe Pay (integration candidate)
 
 The optional Alipay refund operation ledger prevents repeating a money-moving
