@@ -68,8 +68,12 @@ All modules remain **unapproved for real merchant use until CI and admission**.
   the exact signed query bytes. Stable event IDs make identical replay
   idempotent; the ordinary projector/outbox subsequently handles withdrawal.
   **This does not initiate a provider refund or expose a public refund endpoint.**
-  The operator-authorized network call, durable request-state machine, retry
-  schedule, and verified live merchant flows are still missing. `code=10000`
+  An **opt-in operator-only durable lifecycle** now lives in
+  `commerce/alipay/refund-operations`: the first send is persisted as
+  `unknown` before the external call; it cannot be sent twice; only
+  independently signed refund query evidence may mark the operation
+  `confirmed`. No default money-moving transport, automatic retry,
+  scheduled reconciliation or verified live merchant flow is included. `code=10000`
   alone never proves refund success; absent signed `gmt_refund_pay` cannot
   be replaced with a local receive timestamp.
 - Partial refunds and the cumulative refund ledger are **not supported**:
