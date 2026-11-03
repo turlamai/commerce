@@ -192,14 +192,15 @@ supply the ADR-0020 evidence verifier"
     (released-result (exn:fail:commerce-code failure)))
   (with-handlers
       ([exn:fail:commerce? release-failure!])
-    ;; ADR-0020 verified-evidence boundary: never sign a grant whose journal
-    ;; row the issuer cannot re-authenticate offline. Withdrawals intentionally
-    ;; skip re-verification — a forged refund can only deny service (revoke a
-    ;; lineage that a verified grant created), never mint rights; every
-    ;; refusal below is a typed deterministic release, never a retry storm or
-    ;; a signature.
+    ;; ADR-0020 verified-evidence boundary (issue #38): never sign a grant
+    ;; or a withdrawal whose journal row the issuer cannot re-authenticate
+    ;; offline. Grants verify the signed payment; withdrawals verify the
+    ;; signed refund-query proof journaled by the refund slice, closing the
+    ;; forged-refund denial-of-service window for providers with offline
+    ;; refund verification. Every refusal is a typed deterministic release,
+    ;; never a retry storm or a signature.
     (define verifier (issuance-worker-evidence-verifier worker))
-    (when (and verifier (not (eq? action 'withdraw)))
+    (when verifier
       (define record
         (storage-journal-sequence-ref
          storage (issuance-outbox-item-source-sequence item)))
@@ -208,7 +209,7 @@ supply the ADR-0020 evidence verifier"
          'evidence-unverifiable
          "claimed work references a journal row that no longer resolves"
          (hash 'sequence (issuance-outbox-item-source-sequence item))))
-      (verify-issuance-evidence! verifier record offer-id))
+      (verify-issuance-evidence! verifier record offer-id subject-id))
     (define policy
       (permit-policy-for-offer (issuance-worker-catalog worker) offer-id))
     (define subject-type
