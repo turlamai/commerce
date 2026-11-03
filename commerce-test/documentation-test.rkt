@@ -46,6 +46,22 @@
 (define canonical-family-url
   "https://github.com/turlamai/keel/blob/main/docs/family-architecture.md")
 
+;; The storage schema advances independently of the prose. Tie the headline
+;; schema number in both READMEs to the single source of truth in
+;; storage/sqlite.rkt so a migration cannot silently leave the docs behind.
+(define sqlite-source
+  (file->string (build-path repository-root "commerce" "storage" "sqlite.rkt")))
+(define schema-version
+  (let ([match (regexp-match #px"\\(define schema-version ([0-9]+)\\)" sqlite-source)])
+    (unless match
+      (error 'documentation-test "cannot find schema-version in storage/sqlite.rkt"))
+    (string->number (cadr match))))
+(for ([entry '("README.md" "README.zh-CN.md")])
+  (check-true
+   (string-contains? (file->string (build-path repository-root entry))
+                     (format "schema v~a" schema-version))
+   (format "~a must state the current SQLite schema v~a" entry schema-version)))
+
 (for ([entry '("AGENTS.md"
                "README.md"
                "README.zh-CN.md"
