@@ -47,21 +47,33 @@ and unknown Offers, missing evidence, and unconfigured verifier keys —
 every forged path fails closed with a typed refusal and no lineage or
 revision is written.
 
+Issue #38 closed the remaining forgery gaps. The issuer now also fences
+the claimed outbox subject against the journaled event and re-derives
+the subject from the append-only checkout binding (which always carried
+no-update/no-delete triggers and a unique merchant id — rebinding an
+existing checkout was never possible), so a genuine payment or signed
+refund proof can no longer be redirected to a different subject by a
+forged journal row or a retargeted outbox row. Withdrawal intents now
+re-verify the journaled signed refund-query proof (request id recovered
+from the `refund:<id>` event id, settlement time cross-checked), closing
+the forged-refund denial-of-service window for providers with offline
+refund verification.
+
 Remaining limitations, recorded honestly:
 
-- The offer-to-subject checkout binding is still written by the edge and
-  cannot authenticate itself. A compromised edge can therefore spend a
-  genuine payment on a different subject of the same Offer, or bind a
-  victim subject to its own purchase. Closing this requires an
-  authenticated binding-minting channel and is a further milestone.
+- Creating a *new* checkout binding for any subject remains a legitimate
+  edge operation: whoever controls checkout creation controls who a new
+  payment is minted for. That is the product's identity boundary (issue
+  #21 owns the account mapping), not something Commerce can authenticate
+  on its own.
 - Pancake amounts are anchored to the Offer price, not to the webhook
   body (the webhook does not carry the payment amount); the signed
-  webhook, journal event identity, and catalog price are the anchors.
-- Withdrawal intents intentionally skip payment re-verification: a
-  forged refund can deny service by revoking a lineage a verified grant
-  created, but cannot mint rights.
-- Refund-row re-verification lands with the full-refund slice's
-  refund-query proof once that slice reaches main.
+  webhook, journal event identity, binding, and catalog price are the
+  anchors. Pancake has no refund flow to verify yet.
+- Providers without offline verification for a row kind still fail
+  closed when a verifier is wired (`evidence-provider-unsupported`,
+  `evidence-kind-unsupported`); running without a verifier remains
+  available only as an explicit deployment choice.
 
 ## Expected behavior
 

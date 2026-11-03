@@ -123,14 +123,19 @@
   (define catalog (and issuer? (make-placeholder-catalog)))
 
   ;; The issuer re-verifies journaled payment evidence before any signing:
-  ;; provider public keys plus the pinned catalog price anchor (issue #10).
+  ;; provider public keys plus the pinned catalog price anchor (issue #10),
+  ;; cross-checked against the append-only checkout binding for the subject
+  ;; the out_trade_no was minted for (issue #38).
   (define evidence-verifier
     (and issuer?
          (make-issuance-evidence-verifier
           #:catalog catalog
           #:alipay-public-key-pem
           (and alipay-verification-key-path
-               (string-trim (file->string alipay-verification-key-path))))))
+               (string-trim (file->string alipay-verification-key-path)))
+          #:binding-lookup
+          (lambda (order-id)
+            (storage-checkout-binding-ref storage order-id)))))
 
   ;; ---- storage, worker, edge ------------------------------------------
 

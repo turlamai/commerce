@@ -91,10 +91,14 @@ Signing authority is bounded by the verified-evidence boundary
 (ADR-0020, issue #10): the issuer role re-verifies journaled provider
 signatures offline with issuer-held public keys and the pinned catalog
 price before any grant is signed, so a compromised HTTP edge that forges
-journal, projection, or outbox rows cannot obtain a credential without a
-genuine provider-signed payment for the exact amount. The offer-to-subject
-binding remains edge-written and is a recorded residual; see ADR-0020 for
-the full list.
+journal, projection, or outbox rows cannot obtain or redirect a
+credential: the claimed outbox Offer and subject must match the journaled
+event, the subject must match the append-only checkout binding the order
+was minted for, and the amount must match the pinned catalog price.
+Withdrawals re-verify the journaled signed refund-query proof the same
+way. Creating new checkouts for arbitrary subjects remains a legitimate
+edge operation owned by the product's identity boundary; see ADR-0020
+for the full list of residuals.
 
 ## Customer identity
 
