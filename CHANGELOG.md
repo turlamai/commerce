@@ -102,6 +102,13 @@ All notable changes to Commerce are documented here.
 
 ### Added
 
+- Add ADR-0019 strict, operator-owned provider admission manifests and a
+  pre-binding Alipay checkout guard. A checkout is refused unless an approved,
+  unexpired merchant/environment/Offer capability with exact price, currency,
+  payment method and contract paths matches. The shipped template is invalid
+  by default; synthetic fixture acceptance is **not** merchant approval (#5).
+
+
 - Add bounded Alipay one-time **full refund** RSA2 request and refund-query
   proof primitives, requiring exact original CNY amount, stable refund ID,
   authenticated response and explicit `REFUND_SUCCESS`. Reject partial

@@ -154,6 +154,11 @@ belong to explicit server-side modules.
 
 ## Alipay Vibe Pay (integration candidate)
 
+The Alipay operator checkout sample requires a **private, approved capability
+record** before minting an order. Its shipped template refuses by default;
+merchant eligibility and live payment are still external release gates.
+
+
 The optional server-side [Alipay Vibe Pay Basic Collection adapter](docs/alipay-vibe-pay.md)
 is implemented as a signed checkout/request boundary, RSA2-confirmed active
 query client, strict callback parser and durable journal-based callback
