@@ -67,4 +67,4 @@
   (define utc-spelling
     (epoch-seconds->rfc3339 (+ epoch offset-seconds)))
   (string-append (substring utc-spelling 0 10) " "
-                 (substring utc-spelling 11 19))
+                 (substring utc-spelling 11 19)))
