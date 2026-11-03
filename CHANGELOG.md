@@ -49,6 +49,12 @@ All notable changes to Commerce are documented here.
 
 ### Fixed
 
+- Use timezone-independent Gregorian UTC+08:00 conversion for Alipay gateway
+  timestamps and authenticated payment/refund evidence. Host-local civil time
+  previously risked shifting signed event occurrence and breaking durable replay
+  identity outside UTC CI. Add leap-day, invalid-date and fixed-epoch tests (#23).
+
+
 - Import `storage-close` explicitly in the hosted proof HTTP example and
   its regression suite. The SQLite backend module does not re-export this
   lifecycle operation; the missing binding previously prevented package

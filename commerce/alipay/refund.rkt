@@ -21,12 +21,12 @@
          json
          racket/format
          racket/string
-         racket/date
          "../alipay.rkt"
          "../journal.rkt"
          "../storage.rkt"
          "../provider.rkt"
-         "../private/model.rkt")
+         "../private/model.rkt"
+         "../private/alipay-time.rkt")
 
 (struct alipay-full-refund-proof (order-id trade-id request-id amount refunded-at))
 
@@ -132,25 +132,9 @@
 ;; Calendar conversion uses GMT+8 explicitly; callbacks or query retries
 ;; must never use their arbitrary receive time as event occurrence.
 (define (refund-time->epoch value)
-  (define parts
-    (and (string? value)
-         (regexp-match
-          #px"^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})$"
-          value)))
-  (unless parts (fail 'alipay-refund-time-invalid))
-  (define ns (map string->number (cdr parts)))
-  (define-values (year month day hour minute second) (apply values ns))
-  (unless (and (<= 2000 year 2100) (<= 1 month 12)
-               (<= 1 day 31) (<= 0 hour 23)
-               (<= 0 minute 59) (<= 0 second 59))
-    (fail 'alipay-refund-time-invalid))
-  (define tm (find-seconds second minute hour day month year #f))
-  (define d (seconds->date tm #f))
-  (unless (and (= (date-year d) year) (= (date-month d) month)
-               (= (date-day d) day) (= (date-hour d) hour)
-               (= (date-minute d) minute) (= (date-second d) second))
-    (fail 'alipay-refund-time-invalid))
-  (- tm (* 8 3600)))
+  (with-handlers ([exn:fail?
+                   (lambda (_) (fail 'alipay-refund-time-invalid))])
+    (gmt8-wall-time->epoch value)))
 
 ;; This does NOT initiate a refund: it durably records a previously executed,
 ;; signed, full-refund query with the original payment's bound Offer/subject.

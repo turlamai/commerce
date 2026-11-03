@@ -79,6 +79,16 @@ All modules remain **unapproved for real merchant use until CI and admission**.
   never construct trusted payment facts from browser requests or callbacks
   alone.
 
+## Time and replay identity
+
+Alipay timestamps such as `gmt_payment`, `gmt_refund_pay` and the
+gateway request `timestamp` use **UTC+08:00**, not the server's
+configured local time zone. All three now share a Gregorian civil-time
+conversion independent of host time zone or daylight saving settings.
+Malformed/nonexistent dates fail closed, and an authenticated duplicate
+notification retains the same canonical event occurrence time on
+Windows, macOS and Linux.
+
 ## Threat and readiness checks
 
 Verify current merchant/app eligibility and capability matrix (CNY,

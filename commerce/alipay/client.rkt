@@ -12,10 +12,10 @@
 (require crypto
          crypto/libcrypto
          net/http-easy
-         racket/date
          racket/port
          "../alipay.rkt"
          "refund.rkt"
+         "../private/alipay-time.rkt"
          "../private/model.rkt")
 
 (define sandbox-gateway "https://openapi-sandbox.dl.alipaydev.com/gateway.do")
@@ -50,19 +50,9 @@
     (emit (cdr entry)))
   (get-output-bytes out))
 
-(define (pad2 value)
-  (if (< value 10) (string-append "0" (number->string value))
-      (number->string value)))
-
 (define (default-timestamp)
-  ;; Alipay expects yyyy-MM-dd HH:mm:ss in China time (GMT+8).
-  (define date (seconds->date (+ (current-seconds) (* 8 3600)) #f))
-  (string-append (number->string (date-year date))
-                 "-" (pad2 (date-month date))
-                 "-" (pad2 (date-day date))
-                 " " (pad2 (date-hour date))
-                 ":" (pad2 (date-minute date))
-                 ":" (pad2 (date-second date))))
+  ;; Alipay's API uses UTC+08:00, regardless of the local host time zone.
+  (epoch-seconds->gmt8-timestamp (current-seconds)))
 
 (define (default-transport url body)
   (define response

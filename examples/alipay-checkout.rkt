@@ -7,12 +7,12 @@
          crypto/libcrypto
          crypto/pem
          racket/cmdline
-         racket/date
          racket/file
          racket/port
          racket/string
          commerce
          commerce/alipay
+         commerce/private/alipay-time
          commerce/storage
          commerce/storage/sqlite)
 
@@ -22,15 +22,10 @@
     (error 'alipay-checkout "missing required environment setting: ~a" name))
   value)
 
-(define (pad2 n)
-  (if (< n 10) (string-append "0" (number->string n)) (number->string n)))
-
 (define (china-timestamp)
-  (define d (seconds->date (+ (current-seconds) (* 8 3600)) #f))
-  (string-append
-   (number->string (date-year d)) "-"
-   (pad2 (date-month d)) "-" (pad2 (date-day d)) " "
-   (pad2 (date-hour d)) ":" (pad2 (date-minute d)) ":" (pad2 (date-second d))))
+  ;; The checkout example must use the same UTC+08:00 contract as the API
+  ;; client and journal, even when the operator's host is in another zone.
+  (epoch-seconds->gmt8-timestamp (current-seconds)))
 
 (define (merchant-key path)
   (define entry
