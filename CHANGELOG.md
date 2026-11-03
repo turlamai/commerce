@@ -11,7 +11,6 @@ All notable changes to Commerce are documented here.
   bytes in `~v`, `~s` or `~a` debugging/logging. Add a regression covering
   all three formats while preserving explicit trusted key resolution (#21).
 
-
 - Add the Pancake signed refund flow (issue #40): the webhook edge now
   dispatches on the verified event type and journals `refund.succeeded`
   webhooks as `payment-refunded` rows with the same signature-evidence
