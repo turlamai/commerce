@@ -74,7 +74,7 @@
    (lambda (path)
      (define admission (read-provider-admission path))
      (check-true (provider-admission? admission))
-     (check-void (admit admission))
+     (check-true (void? (admit admission)))
      (check-refused (lambda () (admit admission #:provider "pancake")))
      (check-refused (lambda () (admit admission #:environment "production")))
      (check-refused (lambda () (admit admission #:app "other-app")))
