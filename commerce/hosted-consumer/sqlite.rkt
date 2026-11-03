@@ -131,12 +131,13 @@
                (equal? (verified-credential-issuer verified) issuer)
                (equal? (verified-credential-subject-type verified) kind)
                (equal? (verified-credential-subject-id verified) subject)
-               (equal? (verified-credential-entitlement-id verified)
-                       (hash-ref proof 'entitlement_id))
-               (= (verified-credential-revision verified)
-                  (hash-ref proof 'revision))
                (signed-scope-includes? verified product))
     (refuse 'hosted-watermark-scope-mismatch))
+  (unless (and (equal? (verified-credential-entitlement-id verified)
+                       (hash-ref proof 'entitlement_id))
+               (= (verified-credential-revision verified)
+                  (hash-ref proof 'revision)))
+    (refuse 'hosted-watermark-invalid-proof))
   ;; The verified signature and declared scope are necessary but still not
   ;; sufficient for paid admission. The backend must fetch CURRENT state per
   ;; action, check usable features/quota and fail closed on outage.
