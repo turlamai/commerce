@@ -4,7 +4,6 @@
          racket/file
          json
          base64
-         (only-in file/sha1 sha256-bytes)
          crypto
          crypto/libcrypto
          commerce
@@ -88,7 +87,9 @@
         (define raw #"synthetic-payment-evidence")
         (define paid
           (make-verified-payment-event
-           "alipay" "notification-001" (bytes->hex-string (sha256-bytes raw))
+           "alipay" "notification-001" (bytes->hex-string
+           (parameterize ([crypto-factories (list libcrypto-factory)])
+             (digest 'sha256 raw)))
            'payment-succeeded "fixture-order" "taskly-pro-lifetime"
            "account-a" (money "CNY" 1234) 1793334600))
         (journal-accept! storage raw paid #:received-at 2)
