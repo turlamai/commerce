@@ -3,6 +3,8 @@
 @title{Commerce}
 @author{TuringLambdaAI}
 
+@defmodule[commerce]
+
 Public module: @tt{commerce}
 
 Commerce is a provider-neutral commercial management core: authenticated
@@ -18,29 +20,22 @@ their native authentication and semantic checks.
 
 @subsection{Money}
 
-@verbatim{
-(money currency minor-units) -> money?
-  currency    : string?
-  minor-units : exact-nonnegative-integer?
-}
-
+@defproc[(money [currency string?] [minor-units exact-nonnegative-integer?])
+         money?]{
 Represents money exactly in the currency's smallest configured unit. Currency
-is an uppercase three-letter ISO 4217 code. Floating-point amounts are rejected.
+is an uppercase three-letter ISO 4217 code. Floating-point amounts are rejected.}
 
 @subsection{Offer}
 
-@verbatim{
-(offer id product-id kind price entitlement-policy-id) -> offer?
-  id                    : string?
-  product-id            : string?
-  kind                  : (or/c 'one-time 'subscription)
-  price                 : money?
-  entitlement-policy-id : string?
-}
-
+@defproc[(offer [id string?]
+                [product-id string?]
+                [kind (or/c 'one-time 'subscription)]
+                [price money?]
+                [entitlement-policy-id string?])
+         offer?]{
 Describes one stable thing a customer may buy. Identifiers are lowercase
 kebab-case. Provider product and price identifiers are mappings owned by the
-service and are not part of this value.
+service and are not part of this value.}
 
 @section{Projection API}
 

@@ -4,6 +4,28 @@ All notable changes to Commerce are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Make the README quick start runnable: clone the repository, install it as a
+  linked package, then run `examples/first-purchase.rkt`. Installing by URL
+  and immediately running a repository-relative example could not work
+  outside a checkout. Apply the same `--link "$PWD"` fix to both development
+  install snippets.
+
+- Reconcile the documented SQLite schema with the code: the READMEs said v7
+  and v4 while `storage/sqlite.rkt` defines v8. Add a documentation test that
+  reads `schema-version` and requires both READMEs to state it, so the next
+  migration cannot silently leave the prose behind.
+
+- Give the Scribble manual a `@defmodule[commerce]` anchor and convert the
+  Money and Offer value sections from `@verbatim` signatures to indexed
+  `@defproc` entries. Larger reference coverage remains tracked separately.
+
+- State the verified-evidence boundary accurately in `docs/security.md`:
+  re-verification runs when the issuance worker is assembled with
+  `#:evidence-verifier`, whose default is `#f` for fixture-only harnesses.
+  Production assemblies must supply it.
+
 ### Security
 
 - Keep the hosted-service key registry opaque to Racket diagnostic printing.

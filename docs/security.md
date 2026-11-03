@@ -88,7 +88,8 @@ HTTP-facing process cannot read/export the raw key. Key identifiers and
 rotation state are recorded with every issuance.
 
 Signing authority is bounded by the verified-evidence boundary
-(ADR-0020, issue #10): the issuer role re-verifies journaled provider
+(ADR-0020, issue #10), **when the issuance worker is assembled with an
+`#:evidence-verifier`**: the issuer role then re-verifies journaled provider
 signatures offline with issuer-held public keys and the pinned catalog
 price before any grant is signed, so a compromised HTTP edge that forges
 journal, projection, or outbox rows cannot obtain or redirect a
@@ -99,6 +100,13 @@ Withdrawals re-verify the journaled signed refund-query proof the same
 way. Creating new checkouts for arbitrary subjects remains a legitimate
 edge operation owned by the product's identity boundary; see ADR-0020
 for the full list of residuals.
+
+`make-issuance-worker` defaults `#:evidence-verifier` to `#f` so fixture-only
+tests and the mock walkthrough can drive the state machine without provider
+keys. That default is **not** a production configuration: every deployed
+issuer must pass a verifier built with the provider's pinned public keys. A
+worker created without one signs recorded rights intents without offline
+re-authentication of the journaled payment evidence.
 
 ## Customer identity
 

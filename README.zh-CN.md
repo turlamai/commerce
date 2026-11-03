@@ -33,8 +33,9 @@ owner 安全的租约状态机和事务型 lineage 写入器，显式 issuer wor
 退款与运营重放面。
 
 ```bash
-raco pkg install --auto --name commerce \
-  https://github.com/turlamai/commerce.git
+git clone https://github.com/turlamai/commerce.git
+cd commerce
+raco pkg install --auto --name commerce --link "$PWD"
 
 racket examples/first-purchase.rkt
 ```
@@ -168,7 +169,7 @@ Racket 服务端签名下单、主动查单验签、严格异步通知及 SQLite
 - 渠道 adapter 契约与 mock 购买演示；
 - 持久 SQLite 原始事件 journal，包含摘要复核、精确重放、冲突拒绝和数据库级
   不可变保护；
-- SQLite schema v4，包含 v1/v2/v3 原位迁移、确定性 journal 投影、订单与签发
+- SQLite schema v8，包含 v1–v7 原位迁移、确定性 journal 投影、订单与签发
   outbox 的原子写入，以及只追加且 revision 连续的 entitlement lineage 证据；
 - Pancake RSA-SHA256 原始字节验签，包含显式环境密钥、有限重放窗口、mode 绑定
   和脱敏的类型化错误；
@@ -198,7 +199,7 @@ Racket 服务端签名下单、主动查单验签、严格异步通知及 SQLite
 - HTTP webhook 边界与 claim 门户：对精确字节验签、解析持久 checkout
   期望（schema v6，只追加 binding）、主动查单、幂等 journal、完备状态码
   映射；门户经 HTTP 兑换一次性 claim（未知/重用/过期分别 404/409/410）；
-- schema v7 运营审计（只追加的 action/operator/reason 证据）与有界
+- schema v8 运营审计（只追加的 action/operator/reason 证据）与有界
   凭证补发（同一凭证换发新 token,带审计）；
 - 有界渠道对账：签名读取订单事实与投影比对，输出类型化差异，绝不改动
   持久状态；
@@ -245,7 +246,7 @@ Racket 服务端签名下单、主动查单验签、严格异步通知及 SQLite
 ## 开发
 
 ```bash
-raco pkg install --auto --no-docs --name commerce .
+raco pkg install --auto --no-docs --name commerce --link "$PWD"
 raco make commerce/main.rkt commerce/provider.rkt commerce/journal.rkt \
   commerce/storage.rkt commerce/storage/sqlite.rkt commerce/pancake.rkt \
   commerce/permit.rkt \
