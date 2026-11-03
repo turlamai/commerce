@@ -154,6 +154,11 @@ belong to explicit server-side modules.
 
 ## Alipay Vibe Pay (integration candidate)
 
+The optional Alipay refund operation ledger prevents repeating a money-moving
+request after a crash or timeout and accepts rights withdrawal only after a
+signed full-refund query. It does not activate refunds or merchant accounts.
+
+
 The Alipay operator checkout sample requires a **private, approved capability
 record** before minting an order. Its shipped template refuses by default;
 merchant eligibility and live payment are still external release gates.
