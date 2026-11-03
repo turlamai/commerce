@@ -64,7 +64,7 @@ subject id. Email and provider customer ids are mappings, not authorization
 identities. Checkout redirects, claim tokens, and Commerce API responses are
 workflow evidence, never permission to unlock a feature.
 
-## Hosted-product integration (proposal, not a published API)
+## Hosted-product integration (pilot; not production)
 
 A hosted product with quota-gated jobs (Publy is the first candidate) still
 needs a scoped server-to-server current-entitlement read. The existing
