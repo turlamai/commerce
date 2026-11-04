@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require commerce
+(require db
+         commerce
          commerce/journal
          commerce/operator/cli
          commerce/provider
@@ -92,7 +93,8 @@
    (lambda (path)
      (check-false (file-exists? path))
      (for ([arguments (in-list
-                       (list (vector "find" (path->string path))
+                       (list (vector "doctor" (path->string path))
+                             (vector "find" (path->string path))
                              (vector "explain" (path->string path) "mock" "order")
                              (vector "redrive" (path->string path) "missing")))])
        (define-values (code result)
@@ -151,3 +153,34 @@
      (check-equal? (hash-ref report 'warnings) '())
      (check-equal? (hash-ref (hash-ref report 'journal) 'total) 0)
      (check-equal? (hash-ref (hash-ref report 'work) 'pending) 0))))
+
+(test-case "doctor refuses an old schema without performing a migration"
+  (call-with-temporary-database
+   (lambda (path)
+     (define db (sqlite3-connect #:database path #:mode 'create))
+     (query-exec db "PRAGMA application_id = 1129270605")
+     (query-exec db "PRAGMA user_version = 7")
+     (disconnect db)
+
+     (define-values (code result)
+       (call-with-cli
+        (lambda ()
+          (run-commerce-cli! (vector "doctor" (path->string path))))))
+     (check-equal? code 1)
+     (check-false (hash-ref result 'ok))
+     (check-equal? (hash-ref result 'error) "database-schema-unsupported")
+
+     ;; Raw SQLite evidence: the diagnostic did not migrate v7 to v8 or
+     ;; introduce any journal/projection tables into the source database.
+     (define unchanged (sqlite3-connect #:database path #:mode 'read-only))
+     (dynamic-wind
+      void
+      (lambda ()
+        (check-equal? (query-value unchanged "PRAGMA user_version") 7)
+        (check-equal?
+         (query-value
+          unchanged
+          "SELECT count(*) FROM sqlite_master
+           WHERE type = 'table' AND name = 'commerce_event_journal'")
+         0))
+      (lambda () (disconnect unchanged))))))
