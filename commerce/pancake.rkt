@@ -49,7 +49,8 @@
          racket/port
          racket/string
          (only-in "provider.rkt" make-verified-payment-event)
-         "private/model.rkt")
+         "private/model.rkt"
+         "private/bounded-stream.rkt")
 
 (define default-past-tolerance-ms (* 45 60 1000))
 (define default-future-tolerance-ms (* 60 1000))
@@ -475,6 +476,9 @@ PEM
       (error 'parse-private-key "private key is not RSA signing key"))
     key))
 
+(module+ test
+  (provide default-order-transport))
+
 (define (default-order-transport endpoint headers body connect-timeout
                                  request-timeout)
   (define response
@@ -491,10 +495,8 @@ PEM
     void
     (lambda ()
       (define response-body-bytes
-        (sync/timeout
-         request-timeout
-         (read-bytes-evt (add1 max-order-response-bytes)
-                         (response-output response))))
+        (read-bounded-stream (response-output response)
+                             max-order-response-bytes request-timeout))
       (unless response-body-bytes
         (error 'default-order-transport "response body timed out"))
       (when (eof-object? response-body-bytes)
