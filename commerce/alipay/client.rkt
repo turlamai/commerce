@@ -16,6 +16,7 @@
          "../alipay.rkt"
          "refund.rkt"
          "../private/alipay-time.rkt"
+         "../private/bounded-stream.rkt"
          "../private/model.rkt")
 
 (define sandbox-gateway "https://openapi-sandbox.dl.alipaydev.com/gateway.do")
@@ -54,23 +55,8 @@
   ;; Alipay's API uses UTC+08:00, regardless of the local host time zone.
   (epoch-seconds->gmt8-timestamp (current-seconds)))
 
-;; http-easy may expose a wrapped input pipe whose progress events cannot be
-;; used with read-bytes-evt. Read in a cancellable worker so the byte bound and
-;; deadline still apply to streaming, truncated and stalled responses.
-(define (read-bounded-response input [timeout-seconds 15])
-  (define result (make-channel))
-  (define worker
-    (thread
-     (lambda ()
-       (with-handlers ([exn:fail? (lambda (_) (channel-put result #f))])
-         (channel-put result (read-bytes (add1 max-response-bytes) input))))))
-  (dynamic-wind
-    void
-    (lambda () (sync/timeout timeout-seconds result))
-    (lambda () (kill-thread worker))))
-
 (module+ test
-  (provide default-transport read-bounded-response))
+  (provide default-transport))
 
 (define (default-transport url body)
   (define response
@@ -85,7 +71,7 @@
   (dynamic-wind
     void
     (lambda ()
-      (define raw (read-bounded-response (response-output response)))
+      (define raw (read-bounded-stream (response-output response) max-response-bytes 15))
       (unless (and raw (bytes? raw)
                    (<= (bytes-length raw) max-response-bytes))
         (raise-query 'alipay-query-unavailable))
