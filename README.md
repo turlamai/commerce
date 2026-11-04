@@ -153,6 +153,12 @@ The default `commerce` facade does not expose provider secrets, raw webhook
 acceptance, network listeners, databases, or Permit signing. Those capabilities
 belong to explicit server-side modules.
 
+The read-only operator check `raco commerce doctor <database>` opens an
+existing schema-v8 service database through SQLite in **read-only mode**,
+prints a redacted JSON readiness snapshot, and exits nonzero on warnings or
+an incompatible database. It never bootstraps, migrates or repairs storage;
+perform any necessary migration through the reviewed service runbook.
+
 ## Alipay Vibe Pay (integration candidate)
 
 The optional Alipay refund operation ledger prevents repeating a money-moving
