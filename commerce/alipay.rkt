@@ -6,6 +6,7 @@
 ;; merchant order before supplying matching verified order facts.
 (provide
  alipay-signing-content
+ alipay-request-signing-content
  parse-alipay-form
  make-alipay-page-pay-parameters
  make-alipay-trade-query-parameters
@@ -125,6 +126,16 @@
   (string-join
    (for/list ([p (in-list (sort fields string<? #:key car))]
               #:unless (member (car p) '("sign" "sign_type")))
+     (string-append (car p) "=" (cdr p)))
+   "&"))
+
+;; Outbound OpenAPI requests sign sign_type; asynchronous notifications do not.
+;; Keep the existing notification canonicalizer for compatibility.
+(define (alipay-request-signing-content fields)
+  (checked-fields 'alipay-request-signing-content fields)
+  (string-join
+   (for/list ([p (in-list (sort fields string<? #:key car))]
+              #:unless (or (equal? (car p) "sign") (string=? (cdr p) "")))
      (string-append (car p) "=" (cdr p)))
    "&"))
 
@@ -249,7 +260,7 @@
       (parameterize ([crypto-factories (list libcrypto-factory)])
         (digest/sign private-key 'sha256
                      (string->bytes/utf-8
-                      (alipay-signing-content fields))
+                      (alipay-request-signing-content fields))
                      #:pad 'pkcs1-v1.5))))
   (cons (cons "sign"
               (bytes->string/utf-8 (base64-encode signature #:line #f)))
@@ -288,7 +299,7 @@
       (parameterize ([crypto-factories (list libcrypto-factory)])
         (digest/sign private-key 'sha256
                      (string->bytes/utf-8
-                      (alipay-signing-content fields))
+                      (alipay-request-signing-content fields))
                      #:pad 'pkcs1-v1.5))))
   (cons (cons "sign"
               (bytes->string/utf-8 (base64-encode signature #:line #f)))
