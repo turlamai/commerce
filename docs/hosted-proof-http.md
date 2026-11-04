@@ -55,6 +55,11 @@ independently bind **the authenticated service** to issuer, subject
 type/id, Offer and product. Production setups must not use a callback
 that accepts arbitrary subject IDs or all Offers for a service.
 
+The in-memory registry value is **opaque to diagnostic printing** to avoid
+accidental serialization of file-backed HMAC secrets in ordinary logs. Only
+the trusted HTTP authentication adapter should call the explicit key resolver;
+do not log its returned bytes or pass the registry into untrusted code.
+
 ## Response behavior
 
 - `200`: signed proof or a typed no-access result. A

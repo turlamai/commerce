@@ -38,8 +38,9 @@ the refund and operator replay surface, tests, and one runnable purchase
 walkthrough.
 
 ```bash
-raco pkg install --auto --name commerce \
-  https://github.com/turlamai/commerce.git
+git clone https://github.com/turlamai/commerce.git
+cd commerce
+raco pkg install --auto --name commerce --link "$PWD"
 
 racket examples/first-purchase.rkt
 ```
@@ -167,6 +168,12 @@ reports payment-processing, issuance, recorded credential and refund states.
 It never returns a client paid flag or authorizes features; the product owns
 identity, import confirmation and customer recovery.
 
+The read-only operator check `raco commerce doctor <database>` opens an
+existing schema-v8 service database through SQLite in **read-only mode**,
+prints a redacted JSON readiness snapshot, and exits nonzero on warnings or
+an incompatible database. It never bootstraps, migrates or repairs storage;
+perform any necessary migration through the reviewed service runbook.
+
 ## Alipay Vibe Pay (integration candidate)
 
 The optional Alipay refund operation ledger prevents repeating a money-moving
@@ -197,7 +204,7 @@ Implemented now:
 - a provider adapter contract and mock walkthrough;
 - a durable SQLite raw-event journal with digest verification, exact replay,
   conflicting-replay rejection, and database-enforced immutable rows;
-- SQLite schema v7 with versioned migrations from v1-v6, deterministic journal
+- SQLite schema v8 with versioned migrations from v1-v7, deterministic journal
   projection, atomic order plus issuance-outbox writes, and append-only,
   contiguous entitlement-lineage evidence;
 - exact-byte Pancake RSA-SHA256 verification with explicit environment keys,
@@ -243,7 +250,7 @@ Implemented now:
   acknowledge with total status mapping; the portal fulfills one-time
   claims over HTTP (404/409/410 for unknown, reused, and expired
   tokens);
-- operator audit on schema v7 (append-only action/operator/reason
+- operator audit on schema v8 (append-only action/operator/reason
   evidence) and bounded claim reissue for the same credential with
   audited fresh tokens;
 - bounded provider reconciliation: signed order-fact reads compared
@@ -303,7 +310,7 @@ walkthrough does not establish production readiness.
 ## Development
 
 ```bash
-raco pkg install --auto --no-docs --name commerce .
+raco pkg install --auto --no-docs --name commerce --link "$PWD"
 raco make commerce/main.rkt commerce/provider.rkt commerce/journal.rkt \
   commerce/storage.rkt commerce/storage/sqlite.rkt commerce/pancake.rkt \
   commerce/permit.rkt \

@@ -4,7 +4,47 @@ All notable changes to Commerce are documented here.
 
 ## Unreleased
 
+### Added
+
+- Add an internal Alipay checkout coordinator with operator-reviewed Offer
+  and provider admission, durable request claims and immutable order binding.
+  Retries reuse the same order; conflicting account or merchant settings fail
+  closed. This adds no public endpoint or authorization to accept money.
+
+- Add `raco commerce doctor <database>`: a genuinely read-only operational
+  probe with a SQLite read-only connection, schema-version check, journal and
+  work counts, claim state and typed health warnings in JSON. It exits 1 for
+  unhealthy or incompatible databases and never bootstraps, migrates or
+  creates indexes while inspecting the service.
+
+### Fixed
+
+- Make the README quick start runnable: clone the repository, install it as a
+  linked package, then run `examples/first-purchase.rkt`. Installing by URL
+  and immediately running a repository-relative example could not work
+  outside a checkout. Apply the same `--link "$PWD"` fix to both development
+  install snippets.
+
+- Reconcile the documented SQLite schema with the code: the READMEs said v7
+  and v4 while `storage/sqlite.rkt` defines v8. Add a documentation test that
+  reads `schema-version` and requires both READMEs to state it, so the next
+  migration cannot silently leave the prose behind.
+
+- Give the Scribble manual a `@defmodule[commerce]` anchor and convert the
+  Money and Offer value sections from `@verbatim` signatures to indexed
+  `@defproc` entries. Larger reference coverage remains tracked separately.
+
+- State the verified-evidence boundary accurately in `docs/security.md`:
+  re-verification runs when the issuance worker is assembled with
+  `#:evidence-verifier`, whose default is `#f` for fixture-only harnesses.
+  Production assemblies must supply it.
+
 ### Security
+
+- Keep the hosted-service key registry opaque to Racket diagnostic printing.
+  A transparent registry struct previously serialized file-backed HMAC secret
+  bytes in `~v`, `~s` or `~a` debugging/logging. Add a regression covering
+  all three formats while preserving explicit trusted key resolution (#21).
 
 - Add the Pancake signed refund flow (issue #40): the webhook edge now
   dispatches on the verified event type and journals `refund.succeeded`

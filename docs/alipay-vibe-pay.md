@@ -16,6 +16,14 @@ primitives (`commerce/alipay`), a bounded HTTPS order-query client
 (`commerce/alipay/server`). The edge does not carry Permit signer keys.
 All modules remain **unapproved for real merchant use until CI and admission**.
 
+The internal [checkout coordinator](decisions/0023-alipay-checkout-coordinator.md)
+composes trusted service/subject scope, an operator-selected Offer and provider
+admission with an immutable binding and signed parameters. A separately
+provisioned durable claim pins merchant and request context across retries.
+It is an in-process building block, not a public checkout API. A network
+adapter still needs service authentication, replay prevention, trusted offer
+selection and an independently reviewed deployment before use.
+
 1. Build server-priced signed `alipay.trade.page.pay` gateway fields with
    `make-alipay-page-pay-parameters`: exact fen-based `total_amount`,
    immutable `out_trade_no`, HTTPS callback addresses, RSA2 signing using

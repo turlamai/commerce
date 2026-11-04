@@ -3,6 +3,8 @@
 @title{Commerce}
 @author{TuringLambdaAI}
 
+@defmodule[commerce]
+
 Public module: @tt{commerce}
 
 Commerce is a provider-neutral commercial management core: authenticated
@@ -18,29 +20,22 @@ their native authentication and semantic checks.
 
 @subsection{Money}
 
-@verbatim{
-(money currency minor-units) -> money?
-  currency    : string?
-  minor-units : exact-nonnegative-integer?
-}
-
+@defproc[(money [currency string?] [minor-units exact-nonnegative-integer?])
+         money?]{
 Represents money exactly in the currency's smallest configured unit. Currency
-is an uppercase three-letter ISO 4217 code. Floating-point amounts are rejected.
+is an uppercase three-letter ISO 4217 code. Floating-point amounts are rejected.}
 
 @subsection{Offer}
 
-@verbatim{
-(offer id product-id kind price entitlement-policy-id) -> offer?
-  id                    : string?
-  product-id            : string?
-  kind                  : (or/c 'one-time 'subscription)
-  price                 : money?
-  entitlement-policy-id : string?
-}
-
+@defproc[(offer [id string?]
+                [product-id string?]
+                [kind (or/c 'one-time 'subscription)]
+                [price money?]
+                [entitlement-policy-id string?])
+         offer?]{
 Describes one stable thing a customer may buy. Identifiers are lowercase
 kebab-case. Provider product and price identifiers are mappings owned by the
-service and are not part of this value.
+service and are not part of this value.}
 
 @section{Projection API}
 
@@ -613,10 +608,18 @@ would render this value.
 
 @section{Operator CLI}
 
-@tt{raco commerce find|explain|redrive} wraps
+@tt{raco commerce doctor|find|explain|redrive} wraps
 @filepath{commerce/operator.rkt} for one service database. Output is JSON
-with redacted summaries; @tt{redrive} exits 0 on success and 1 with a
+with redacted summaries; @tt{doctor} exits 0 when the readiness snapshot has
+no warnings and 1 otherwise, and @tt{redrive} exits 0 on success and 1 with a
 typed code on refusal.
+
+@tt{doctor <database>} is the read-only first-line probe: it reports the
+storage schema version, journal/projection counts, pending and stale-lease
+work, claim state, and every typed health warning in one JSON object. It opens
+the database with SQLite read-only access, never creates an index or migrates a
+schema, and reports a typed refusal for an absent or incompatible database.
+Use @tt{find|explain|redrive} for the follow-up action.
 
 @section{First purchase}
 

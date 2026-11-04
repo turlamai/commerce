@@ -18,6 +18,14 @@
 
 ;; Generate fixture key material during the test, never commit a private key
 ;; or accept a string that has not actually passed RSA2 verification.
+;; Independently reconstruct the OpenAPI request string, including sign_type.
+(define (test-request-content fields)
+  (string-join
+   (for/list ([p (in-list (sort fields string<? #:key car))]
+              #:unless (or (equal? (car p) "sign") (string=? (cdr p) "")))
+     (string-append (car p) "=" (cdr p)))
+   "&"))
+
 (define rsa-private-key
   (parameterize ([crypto-factories (list libcrypto-factory)])
     (generate-private-key (get-pk 'rsa) '((nbits 2048)))))
@@ -204,6 +212,13 @@
   (check-equal? (alipay-confirmed-order-trade-id queried)
                 "202610301234567890"))
 
+(test-case "OpenAPI request and notification signing use distinct fields"
+  (define fields '(("sign_type" . "RSA2") ("app_id" . "app")
+                   ("sign" . "ignored") ("empty" . "")))
+  (check-equal? (alipay-request-signing-content fields)
+                "app_id=app&sign_type=RSA2")
+  (check-equal? (alipay-signing-content fields) "app_id=app&empty="))
+
 (test-case "trade query request is signed for exactly this merchant order"
   (define params
     (make-alipay-trade-query-parameters
@@ -217,7 +232,7 @@
    (digest/verify
     (pk-key->public-only-key rsa-private-key)
     'sha256
-    (string->bytes/utf-8 (alipay-signing-content params))
+    (string->bytes/utf-8 (test-request-content params))
     (base64-decode
      (string->bytes/utf-8 (cdr (assoc "sign" params))))
     #:pad 'pkcs1-v1.5)))
@@ -260,7 +275,7 @@
   (check-true
    (digest/verify
     (pk-key->public-only-key private-key) 'sha256
-    (string->bytes/utf-8 (alipay-signing-content params))
+    (string->bytes/utf-8 (test-request-content params))
     (base64-decode
      (string->bytes/utf-8 (cdr (assoc "sign" params))))
     #:pad 'pkcs1-v1.5))
@@ -373,7 +388,7 @@
         (digest/verify
          (pk-key->public-only-key rsa-private-key)
          'sha256
-         (string->bytes/utf-8 (alipay-signing-content params))
+         (string->bytes/utf-8 (test-request-content params))
          (base64-decode
           (string->bytes/utf-8 (cdr (assoc "sign" params))))
          #:pad 'pkcs1-v1.5))

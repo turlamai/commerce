@@ -67,6 +67,7 @@ operations. Do not duplicate a rule across several guides.
 - [ADR-0020: Separated HTTP/issuer roles and residual shared-DB trust](decisions/0020-split-service-roles.md)
 - [ADR-0021 (proposal): Product-neutral hosted-service entitlement bridge](decisions/0021-hosted-service-entitlement-bridge-proposal.md) — hosted consumer contract and security gates; pilot modules are implemented but not live
 - [ADR-0022: Alipay durable refund operations](decisions/0022-alipay-refund-operations.md) — operator-only one-shot dispatch and signed-query reconciliation, not live approval
+- [ADR-0023: Trusted Alipay checkout coordination](decisions/0023-alipay-checkout-coordinator.md) — internal binding and retry safety, not a public checkout API
 
 ## Source entry points
 
