@@ -9,10 +9,19 @@
          commerce/storage
          commerce/storage/sqlite
          racket/file
+         racket/string
          crypto
          crypto/libcrypto
          json
          rackunit)
+
+;; Independently reconstruct the OpenAPI request string, including sign_type.
+(define (test-request-content fields)
+  (string-join
+   (for/list ([p (in-list (sort fields string<? #:key car))]
+              #:unless (or (equal? (car p) "sign") (string=? (cdr p) "")))
+     (string-append (car p) "=" (cdr p)))
+   "&"))
 
 (define key
   (parameterize ([crypto-factories (list libcrypto-factory)])
@@ -79,7 +88,7 @@
   (check-true
    (digest/verify
     (pk-key->public-only-key key) 'sha256
-    (string->bytes/utf-8 (alipay-signing-content params))
+    (string->bytes/utf-8 (test-request-content params))
     (base64-decode (string->bytes/utf-8 (cdr (assoc "sign" params))))
     #:pad 'pkcs1-v1.5))
   (check-exn (code? 'alipay-partial-refund-unsupported)

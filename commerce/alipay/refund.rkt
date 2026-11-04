@@ -66,7 +66,7 @@
       (parameterize ([crypto-factories (list libcrypto-factory)])
         (digest/sign key 'sha256
                      (string->bytes/utf-8
-                      (alipay-signing-content fields))
+                      (alipay-request-signing-content fields))
                      #:pad 'pkcs1-v1.5))))
   (cons (cons "sign"
               (bytes->string/utf-8
