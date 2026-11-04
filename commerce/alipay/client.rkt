@@ -175,3 +175,40 @@
    (alipay-query-client-alipay-public-key client)
    binding request-id)
   raw)
+
+
+;; This adapter is intended only as #:send-once to the durable, explicitly
+;; authorized refund operation. An HTTP response is never refund evidence;
+;; reconciliation still requires an independently signed refund query.
+(module+ internal
+  (provide make-alipay-full-refund-sender validate-alipay-refund-client!))
+
+(define (validate-alipay-refund-client! client binding environment)
+  (unless (and (alipay-query-client? client) (alipay-binding? binding)
+               (equal? (alipay-binding-app-id binding)
+                       (alipay-query-client-app-id client))
+               (eq? environment (alipay-query-client-environment client)))
+    (raise-query 'alipay-refund-mismatch)))
+
+(define (make-alipay-full-refund-sender client)
+  (unless (alipay-query-client? client)
+    (raise-argument-error 'make-alipay-full-refund-sender
+                          "alipay-query-client?" client))
+  (lambda (binding request-id amount-fen environment)
+    (validate-alipay-refund-client! client binding environment)
+    (define params
+      (make-alipay-full-refund-parameters
+       binding (alipay-query-client-private-key client) request-id
+       #:timestamp ((alipay-query-client-clock client))
+       #:amount-fen amount-fen))
+    (define gateway
+      (if (eq? environment 'sandbox) sandbox-gateway production-gateway))
+    ;; The transport is invoked exactly once; network errors and response
+    ;; content can only yield an unknown outcome, never a confirmed refund.
+    (define-values (status raw)
+      (with-handlers ([exn:fail? (lambda (_) (raise-query 'alipay-refund-unavailable))])
+        ((alipay-query-client-transport client) gateway (form-encode params))))
+    (unless (and (exact-integer? status) (<= 200 status 299)
+                 (bytes? raw) (<= (bytes-length raw) max-response-bytes))
+      (raise-query 'alipay-refund-unavailable))
+    (void)))

@@ -2,12 +2,15 @@
 
 (require rackunit
          racket/file
+         racket/string
          json
          base64
          crypto
          crypto/libcrypto
          commerce
          commerce/alipay
+         commerce/alipay/client
+         (submod commerce/alipay/client internal)
          commerce/alipay/refund-operations
          commerce/provider
          commerce/journal
@@ -113,6 +116,12 @@
    #:environment 'sandbox #:operator "operator-a"
    #:authorize allow #:send-once send-once #:at 1793692801))
 
+(define (send-with-client db storage client)
+  (dispatch-alipay-full-refund-via-client-once!
+   db storage binding "refund-001"
+   #:environment 'sandbox #:operator "operator-a"
+   #:authorize allow #:client client #:at 1793692801))
+
 (define (reconcile db storage query)
   (reconcile-alipay-full-refund!
    db storage binding "refund-001"
@@ -198,3 +207,76 @@
      (check-exn exn:fail?
                 (lambda ()
                   (send db storage (lambda _ (error 'unexpected "sent"))))))))
+
+
+(test-case "durable operator dispatch sends a scoped signed refund once and requires query proof"
+  (with-paid-order
+   (lambda (storage db)
+     (define sends 0)
+     (define transport
+       (lambda (url raw)
+         (set! sends (add1 sends))
+         (check-equal? url "https://openapi-sandbox.dl.alipaydev.com/gateway.do")
+         (define fields (parse-alipay-form raw))
+         (check-equal? (cdr (assoc "method" fields)) "alipay.trade.refund")
+         (check-equal? (cdr (assoc "app_id" fields)) "fixture-app")
+         (define body (string->jsexpr (cdr (assoc "biz_content" fields))))
+         (check-equal? (hash-ref body 'out_trade_no) "fixture-order")
+         (check-equal? (hash-ref body 'out_request_no) "refund-001")
+         (check-equal? (hash-ref body 'refund_amount) "12.34")
+         ;; Independent request canonicalization includes sign_type.
+         (define signed
+           (string-join
+            (for/list ([p (in-list (sort fields string<? #:key car))]
+                       #:unless (equal? (car p) "sign"))
+              (string-append (car p) "=" (cdr p))) "&"))
+         (check-true
+          (digest/verify (pk-key->public-only-key key) 'sha256
+                         (string->bytes/utf-8 signed)
+                         (base64-decode (string->bytes/utf-8 (cdr (assoc "sign" fields))))
+                         #:pad 'pkcs1-v1.5))
+         ;; An HTTP acknowledgement is not evidence of a refund.
+         (values 200 #"synthetic acknowledgement")))
+     (define client (make-alipay-query-client #:app-id "fixture-app"
+       #:merchant-private-key key #:alipay-public-key public #:environment 'sandbox
+       #:transport transport #:clock (lambda () "2026-10-30 12:30:00")))
+     (define sender (make-alipay-full-refund-sender client))
+     ;; No network call can cross environment, merchant or exact amount.
+     (check-exn exn:fail? (lambda () (sender binding "refund-001" 1234 'production)))
+     (check-exn exn:fail? (lambda () (sender binding "refund-001" 1233 'sandbox)))
+     (define other (alipay-binding "other-app" "fixture-seller" "fixture-order"
+                                   "taskly-pro-lifetime" "account-a" (money "CNY" 1234)))
+     (check-exn exn:fail? (lambda () (sender other "refund-001" 1234 'sandbox)))
+     (check-equal? sends 0)
+     (check-eq? (request db storage) 'requested)
+     (define wrong-environment-client
+       (make-alipay-query-client #:app-id "fixture-app" #:merchant-private-key key
+                                 #:alipay-public-key public #:environment 'production
+                                 #:transport transport))
+     (check-exn exn:fail? (lambda () (send-with-client db storage wrong-environment-client)))
+     (check-eq? (alipay-full-refund-operation-status db "refund-001") 'requested)
+     (check-equal? sends 0)
+     (check-eq? (send-with-client db storage client) 'unknown)
+     (check-equal? sends 1)
+     (check-eq? (alipay-full-refund-operation-status db "refund-001") 'unknown)
+     (check-false (journal-ref storage "alipay" "refund:refund-001"))
+     (failed-with? 'alipay-refund-repeat-dispatch (lambda () (send-with-client db storage client)))
+     (check-equal? sends 1)
+     (check-eq? (reconcile db storage (lambda (_binding _id) (refund-query))) 'confirmed))))
+
+(test-case "provider transport failure stays unknown and cannot be sent twice"
+  (with-paid-order
+   (lambda (storage db)
+     (define attempts 0)
+     (define client (make-alipay-query-client #:app-id "fixture-app"
+       #:merchant-private-key key #:alipay-public-key public #:environment 'sandbox
+       #:transport (lambda (_url _body) (set! attempts (add1 attempts))
+                     (error 'synthetic "provider response lost"))
+       #:clock (lambda () "2026-10-30 12:30:00")))
+     (define sender (make-alipay-full-refund-sender client))
+     (check-eq? (request db storage) 'requested)
+     (check-eq? (send-with-client db storage client) 'unknown)
+     (check-eq? (alipay-full-refund-operation-status db "refund-001") 'unknown)
+     (failed-with? 'alipay-refund-repeat-dispatch (lambda () (send-with-client db storage client)))
+     (check-equal? attempts 1)
+     (check-false (journal-ref storage "alipay" "refund:refund-001")))))
