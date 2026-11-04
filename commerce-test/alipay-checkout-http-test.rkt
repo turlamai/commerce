@@ -3,6 +3,7 @@
 (require rackunit json racket/file
          crypto crypto/libcrypto
          commerce commerce/admission commerce/hosted-auth
+         commerce/hosted-replay/sqlite
          commerce/alipay/checkout-http commerce/alipay/checkout-idempotency
          commerce/storage commerce/storage/sqlite)
 
@@ -26,7 +27,12 @@
      (define store (open-sqlite-commerce-storage (build-path dir "commerce.sqlite")))
      (define claims-path (build-path dir "claims.sqlite"))
      (initialize-sqlite-alipay-checkout-claims! claims-path)
-     (define used (make-hash))
+     ;; Use the production-style durable nonce boundary, not a test-only hash.
+     ;; A new process/claimer must observe the same replay evidence.
+     (define replay-path (build-path dir "replay.sqlite"))
+     (initialize-sqlite-hosted-replay-store! replay-path)
+     (define replay-claim!
+       (make-sqlite-hosted-replay-claimer replay-path #:now (lambda () 500)))
      (define service-key (make-bytes 32 107))
      (define signer (parameterize ([crypto-factories (list libcrypto-factory)])
                       (generate-private-key (get-pk 'rsa) '((nbits 2048)))))
@@ -37,8 +43,7 @@
                         (and (equal? service "service") (equal? issuer "fixture")
                              (equal? type "account") (member subject '("account-a" "account-c"))
                              (equal? offer "publy-personal-monthly") (equal? product "publy")))
-        #:claim-once! (lambda (service nonce expiry)
-                        (if (hash-ref used nonce #f) #f (begin (hash-set! used nonce #t) #t)))
+        #:claim-once! replay-claim!
         #:checkout-claim! (make-sqlite-alipay-checkout-claimer claims-path)
         #:resolve-offer (lambda (product id)
                           (and (equal? product "publy") (equal? id "publy-personal-monthly")
@@ -78,11 +83,25 @@
         (check-equal? (hash-ref (string->jsexpr (hash-ref fields 'biz_content)) 'total_amount) "29.00")
         (define-values (replay replay-body) (call request "nonce-000000000004"))
         (check-equal? replay 401)
+        ;; A second claimer simulates restarting the HTTP edge against the
+        ;; existing SQLite replay state; the previous nonce stays spent.
+        (check-false
+         ((make-sqlite-hosted-replay-claimer replay-path #:now (lambda () 500))
+          "service" "nonce-000000000004" 801))
         (define-values (again second) (call request "nonce-000000000005"))
         (check-equal? again 200)
         (check-equal? (hash-ref first 'order_id) (hash-ref second 'order_id))
         (define-values (conflict conflict-body) (call (hash-set request 'subject_id "account-c") "nonce-000000000006"))
         (check-equal? conflict 409)
-        (check-equal? (hash-ref conflict-body 'error) "checkout-conflict"))
+        (check-equal? (hash-ref conflict-body 'error) "checkout-conflict")
+        ;; Loss of nonce history is not an authorization to reset replay state.
+        ;; The handler must refuse rather than silently create a new database.
+        (delete-file replay-path)
+        (define-values (lost lost-body)
+          (call (hash-set request 'request_id "request-after-loss")
+                "nonce-000000000007"))
+        (check-equal? lost 401)
+        (check-false
+         (storage-checkout-binding-ref store "alideadbeefdeadbeefdeadbeefdeadbeef")))
       (lambda () (storage-close store))))
    (lambda () (delete-directory/files dir))))
