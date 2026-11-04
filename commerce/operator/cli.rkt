@@ -140,33 +140,50 @@
 ;; typed health warnings. Exit 1 when a warning is present so a monitoring
 ;; probe can gate on it; the snapshot never repairs anything.
 (define (command-doctor database)
-  (define storage (open-database database))
-  (define now (current-seconds))
-  (define status (health-report storage #:now now))
-  (define readiness (storage-readiness storage #:now now))
-  (define warnings
-    (for/list ([warning (in-list (health-status-warnings status))])
-      (hash 'code (symbol->string (health-warning-code warning))
-            'detail (health-warning-detail warning))))
-  (emit-json
-   (hash 'ok (null? warnings)
-         'schema-version (readiness-schema-version readiness)
-         'journal
-         (hash 'total (readiness-journal-total readiness)
-               'unprojected (readiness-journal-unprojected readiness))
-         'work
-         (hash 'pending (readiness-work-pending readiness)
-               'processing (readiness-work-processing readiness)
-               'stale-lease (readiness-work-stale-lease readiness)
-               'oldest-pending-at (or (readiness-work-oldest-pending-at readiness)
-                                      'null))
-         'claims
-         (hash 'ready (readiness-claim-ready readiness)
-               'claimed (readiness-claim-claimed readiness)
-               'window-passed (readiness-claim-window-passed readiness))
-         'warnings warnings))
-  (storage-close storage)
-  (if (null? warnings) 0 1))
+  ;; An operational probe must not bootstrap, migrate, or add indexes. Its
+  ;; snapshot is obtained from a true SQLite read-only connection.
+  (with-handlers
+      ([exn:fail:commerce?
+        (lambda (failure)
+          (emit-json
+           (hash 'ok #f
+                 'error (symbol->string (exn:fail:commerce-code failure))))
+          1)]
+       [exn:fail?
+        (lambda (_)
+          (emit-json (hash 'ok #f 'error "database-unavailable"))
+          1)])
+    (define storage
+      (open-sqlite-commerce-storage database #:read-only? #t))
+    (dynamic-wind
+     void
+     (lambda ()
+       (define status (health-report storage #:now (current-seconds)))
+       ;; Derive warnings and counters from one consistent readiness snapshot.
+       (define readiness (health-status-readiness status))
+       (define warnings
+         (for/list ([warning (in-list (health-status-warnings status))])
+           (hash 'code (symbol->string (health-warning-code warning))
+                 'detail (health-warning-detail warning))))
+       (emit-json
+        (hash 'ok (null? warnings)
+              'schema-version (readiness-schema-version readiness)
+              'journal
+              (hash 'total (readiness-journal-total readiness)
+                    'unprojected (readiness-journal-unprojected readiness))
+              'work
+              (hash 'pending (readiness-work-pending readiness)
+                    'processing (readiness-work-processing readiness)
+                    'stale-lease (readiness-work-stale-lease readiness)
+                    'oldest-pending-at (or (readiness-work-oldest-pending-at readiness)
+                                           'null))
+              'claims
+              (hash 'ready (readiness-claim-ready readiness)
+                    'claimed (readiness-claim-claimed readiness)
+                    'window-passed (readiness-claim-window-passed readiness))
+              'warnings warnings))
+       (if (null? warnings) 0 1))
+     (lambda () (storage-close storage)))))
 
 ;; Returns the process exit code: 0 on success, 1 on typed refusal or
 ;; usage error. Output is JSON on stdout; module `main` performs the exit.
