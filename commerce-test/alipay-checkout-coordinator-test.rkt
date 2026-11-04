@@ -58,7 +58,7 @@
         (check-equal? (hash-ref business 'out_trade_no) order)
         (check-equal? (hash-ref business 'total_amount) "29.00")
         (check-true (digest/verify (pk-key->public-only-key fixture-key) 'sha256
-                                   (string->bytes/utf-8 (alipay-signing-content fields))
+                                   (string->bytes/utf-8 (alipay-request-signing-content fields))
                                    (base64-decode (string->bytes/utf-8 (cdr (assoc "sign" fields))))
                                    #:pad 'pkcs1-v1.5))
         (define-values (again ignored) (create "account-a" fixture-offer))
