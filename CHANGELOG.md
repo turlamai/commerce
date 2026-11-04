@@ -11,6 +11,12 @@ All notable changes to Commerce are documented here.
   Retries reuse the same order; conflicting account or merchant settings fail
   closed. This adds no public endpoint or authorization to accept money.
 
+- Add `raco commerce doctor <database>`: a genuinely read-only operational
+  probe with a SQLite read-only connection, schema-version check, journal and
+  work counts, claim state and typed health warnings in JSON. It exits 1 for
+  unhealthy or incompatible databases and never bootstraps, migrates or
+  creates indexes while inspecting the service.
+
 ### Fixed
 
 - Make the README quick start runnable: clone the repository, install it as a
