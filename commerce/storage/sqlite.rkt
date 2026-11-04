@@ -931,36 +931,57 @@ SQL
    processed-at processed-at processed-at)
   (lookup-outbox connection (rights-intent-idempotency-key intent)))
 
-(define (open-sqlite-commerce-storage database)
+(define (open-sqlite-commerce-storage database #:read-only? [read-only? #f])
   (unless (path-string? database)
     (raise-argument-error
      'open-sqlite-commerce-storage "path-string?" database))
+  (unless (boolean? read-only?)
+    (raise-argument-error
+     'open-sqlite-commerce-storage "boolean?" read-only?))
+  ;; Operator diagnostics must never bootstrap, migrate, or change indexes.
+  ;; SQLite's read-only connection also rejects accidental writes by callers.
   (define connection
     (sqlite3-connect
      #:database database
-     #:mode 'create
+     #:mode (if read-only? 'read-only 'create)
      #:busy-retry-delay 0.05
      #:busy-retry-limit 40))
   (with-handlers ([exn?
                    (lambda (failure)
                      (disconnect connection)
                      (raise failure))])
-    ;; FULL makes a successful journal or projector commit the durability
-    ;; boundary. Foreign keys protect cross-table source sequence references.
-    (query-value connection "PRAGMA journal_mode = WAL")
-    (query-exec connection "PRAGMA synchronous = FULL")
     (query-exec connection "PRAGMA foreign_keys = ON")
-    (initialize-schema! connection)
-    ;; Existing v7 stores also need the indexes: no data/schema migration
-    ;; and no full event-journal scan on each hosted read.
-    (query-exec
-     connection
-     "CREATE INDEX IF NOT EXISTS commerce_refund_journal_scope
-      ON commerce_event_journal(subject_id, offer_id, event_kind)")
-    (query-exec
-     connection
-     "CREATE INDEX IF NOT EXISTS commerce_outbox_source_kind
-      ON commerce_issuance_outbox(source_journal_sequence, action)"))
+    (if read-only?
+        (let ([stored-application-id
+               (query-value connection "PRAGMA application_id")]
+              [stored-version
+               (query-value connection "PRAGMA user_version")])
+          (unless (= stored-application-id application-id)
+            (raise-commerce
+             'database-identity-conflict
+             "SQLite database does not belong to Commerce"
+             (hash 'application-id stored-application-id)))
+          (unless (= stored-version schema-version)
+            (raise-commerce
+             'database-schema-unsupported
+             "Commerce database requires a separate controlled migration"
+             (hash 'schema-version stored-version))))
+        (begin
+          ;; FULL makes a successful journal or projector commit the
+          ;; durability boundary. Existing databases may migrate only here.
+          (query-value connection "PRAGMA journal_mode = WAL")
+          (query-exec connection "PRAGMA synchronous = FULL")
+          (initialize-schema! connection)
+          ;; Retain existing read-index migrations in the writable opener.
+          (query-exec
+           connection
+           "CREATE INDEX IF NOT EXISTS commerce_refund_journal_scope
+            ON commerce_event_journal(subject_id, offer_id, event_kind)")
+          (query-exec
+           connection
+           "CREATE INDEX IF NOT EXISTS commerce_outbox_source_kind
+            ON commerce_issuance_outbox(source_journal_sequence, action)"))))
+
 
   (define closed? (box #f))
 
