@@ -101,7 +101,9 @@
           (call (hash-set request 'request_id "request-after-loss")
                 "nonce-000000000007"))
         (check-equal? lost 401)
-        (check-false
-         (storage-checkout-binding-ref store "alideadbeefdeadbeefdeadbeefdeadbeef")))
+        (check-equal? (checkout-binding-subject-id
+                       (storage-checkout-binding-ref store
+                                                     (hash-ref first 'order_id)))
+                      "account-a"))
       (lambda () (storage-close store))))
    (lambda () (delete-directory/files dir))))
