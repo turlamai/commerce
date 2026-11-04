@@ -616,9 +616,10 @@ typed code on refusal.
 
 @tt{doctor <database>} is the read-only first-line probe: it reports the
 storage schema version, journal/projection counts, pending and stale-lease
-work, claim state, and every typed health warning in one JSON object. It never
-opens a missing database and never repairs anything; use
-@tt{find|explain|redrive} for the follow-up action.
+work, claim state, and every typed health warning in one JSON object. It opens
+the database with SQLite read-only access, never creates an index or migrates a
+schema, and reports a typed refusal for an absent or incompatible database.
+Use @tt{find|explain|redrive} for the follow-up action.
 
 @section{First purchase}
 
