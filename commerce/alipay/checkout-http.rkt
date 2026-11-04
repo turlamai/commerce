@@ -119,6 +119,6 @@
           #:nonce (one-header headers "x-commerce-nonce") #:mac-hex (one-header headers "x-commerce-mac")))
        (response/full status #"commerce-checkout" (current-seconds) #"application/json"
                       (list (header #"cache-control" #"no-store")) (list body)))
-     #:port port #:listen-ip "127.0.0.1" #:command-line? #f
+     #:port port #:listen-ip "127.0.0.1" #:command-line? #f #:launch-browser? #f
      #:servlet-path route #:servlet-regexp #rx"^/v1/hosted/alipay-checkout$"))
   (lambda () (custodian-shutdown-all owner)))
