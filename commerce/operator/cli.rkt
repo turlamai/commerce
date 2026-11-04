@@ -11,6 +11,7 @@
          json
          racket/match
          racket/string
+         "../health.rkt"
          "../operator.rkt"
          "../storage.rkt"
          "../storage/sqlite.rkt"
@@ -20,6 +21,7 @@
 (define (usage)
   (string-append
    "usage:\n"
+   "  raco commerce doctor  <database>\n"
    "  raco commerce find    <database> [pending|processing|completed]\n"
    "  raco commerce explain <database> <provider> <order-id>\n"
    "  raco commerce redrive <database> <idempotency-key>\n"))
@@ -134,10 +136,45 @@
     (storage-close storage)
     0))
 
+;; Read-only operational snapshot: schema version, readiness counters, and
+;; typed health warnings. Exit 1 when a warning is present so a monitoring
+;; probe can gate on it; the snapshot never repairs anything.
+(define (command-doctor database)
+  (define storage (open-database database))
+  (define now (current-seconds))
+  (define status (health-report storage #:now now))
+  (define readiness (storage-readiness storage #:now now))
+  (define warnings
+    (for/list ([warning (in-list (health-status-warnings status))])
+      (hash 'code (symbol->string (health-warning-code warning))
+            'detail (health-warning-detail warning))))
+  (emit-json
+   (hash 'ok (null? warnings)
+         'schema-version (readiness-schema-version readiness)
+         'journal
+         (hash 'total (readiness-journal-total readiness)
+               'unprojected (readiness-journal-unprojected readiness))
+         'work
+         (hash 'pending (readiness-work-pending readiness)
+               'processing (readiness-work-processing readiness)
+               'stale-lease (readiness-work-stale-lease readiness)
+               'oldest-pending-at (or (readiness-work-oldest-pending-at readiness)
+                                      'null))
+         'claims
+         (hash 'ready (readiness-claim-ready readiness)
+               'claimed (readiness-claim-claimed readiness)
+               'window-passed (readiness-claim-window-passed readiness))
+         'warnings warnings))
+  (storage-close storage)
+  (if (null? warnings) 0 1))
+
 ;; Returns the process exit code: 0 on success, 1 on typed refusal or
 ;; usage error. Output is JSON on stdout; module `main` performs the exit.
 (define (run-commerce-cli! arguments)
   (match arguments
+    [(vector "doctor" database)
+     (with-existing-database database
+       (lambda () (command-doctor database)))]
     [(vector "find" database)
      (with-existing-database database
        (lambda () (command-find database #f)))]

@@ -135,3 +135,19 @@
      (check-equal? refusal-code 1)
      (check-false (hash-ref refusal 'redriven))
      (check-equal? (hash-ref refusal 'code) "unknown-issuance-work"))))
+
+(test-case "doctor reports the schema version and an empty readiness snapshot"
+  (call-with-temporary-database
+   (lambda (path)
+     (define storage (open-sqlite-commerce-storage path))
+     (storage-close storage)
+     (define-values (code report)
+       (call-with-cli
+        (lambda ()
+          (run-commerce-cli! (vector "doctor" (path->string path))))))
+     (check-equal? code 0)
+     (check-true (hash-ref report 'ok))
+     (check-equal? (hash-ref report 'schema-version) 8)
+     (check-equal? (hash-ref report 'warnings) '())
+     (check-equal? (hash-ref (hash-ref report 'journal) 'total) 0)
+     (check-equal? (hash-ref (hash-ref report 'work) 'pending) 0))))

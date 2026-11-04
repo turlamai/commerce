@@ -608,10 +608,17 @@ would render this value.
 
 @section{Operator CLI}
 
-@tt{raco commerce find|explain|redrive} wraps
+@tt{raco commerce doctor|find|explain|redrive} wraps
 @filepath{commerce/operator.rkt} for one service database. Output is JSON
-with redacted summaries; @tt{redrive} exits 0 on success and 1 with a
+with redacted summaries; @tt{doctor} exits 0 when the readiness snapshot has
+no warnings and 1 otherwise, and @tt{redrive} exits 0 on success and 1 with a
 typed code on refusal.
+
+@tt{doctor <database>} is the read-only first-line probe: it reports the
+storage schema version, journal/projection counts, pending and stale-lease
+work, claim state, and every typed health warning in one JSON object. It never
+opens a missing database and never repairs anything; use
+@tt{find|explain|redrive} for the follow-up action.
 
 @section{First purchase}
 
