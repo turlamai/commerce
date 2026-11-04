@@ -4,6 +4,13 @@ All notable changes to Commerce are documented here.
 
 ## Unreleased
 
+### Added
+
+- Add an internal Alipay checkout coordinator with operator-reviewed Offer
+  and provider admission, durable request claims and immutable order binding.
+  Retries reuse the same order; conflicting account or merchant settings fail
+  closed. This adds no public endpoint or authorization to accept money.
+
 ### Fixed
 
 - Make the README quick start runnable: clone the repository, install it as a
