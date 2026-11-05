@@ -6,6 +6,11 @@ All notable changes to Commerce are documented here.
 
 ### Added
 
+- Add an opt-in loopback Alipay checkout handler using the existing scoped
+  service MAC and replay contract. It resolves pricing from trusted server
+  policy and returns a signed request, never proof of payment. It is not a
+  public deployment or evidence of merchant admission.
+
 - Add an internal Alipay checkout coordinator with operator-reviewed Offer
   and provider admission, durable request claims and immutable order binding.
   Retries reuse the same order; conflicting account or merchant settings fail

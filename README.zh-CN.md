@@ -146,6 +146,17 @@ Commerce 只保存确定性编排需要的标识、投影和审计证据。
 
 ## 支付宝 Vibe Pay（待验收接入）
 
+**Publy 的服务端结账试验接口（Commerce #51）：** 新增可选的
+`commerce/alipay/checkout-coordinator` 与 `commerce/alipay/checkout-http`，
+只接受经过服务间认证、带持久化防重放 nonce 的请求，由 Commerce 侧确定
+经审阅的 Offer 和 CNY 精确价格。相同请求安全重试复用同一不可变订单，
+返回的是支付宝签名参数，**不是已付款或已获得 Permit 权益**的证明。
+规范见 [ADR-0023](docs/decisions/0023-alipay-checkout-coordinator.md) 和
+[ADR-0024](docs/decisions/0024-alipay-checkout-transport.md)。
+目前仅供本地回环联调，不能当作公网支付接口；上线前还必须部署持久化防重放与
+结账声明存储、隔离签名权限、核验真实商户准入和全链路支付领取证据。
+一次性预付服务期不意味着自动续费。
+
 已增加可选的运营侧退款持久化状态机：第一次退款发送前记录“结果未知”，重启或
 超时后禁止自动再次发起退款；只有经过验签的完整退款查询结果才能登记权益撤回。
 运营者可明确配置支付宝客户端，通过授权的持久化流程单次发起退款；
