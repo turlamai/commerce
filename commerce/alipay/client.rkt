@@ -16,6 +16,7 @@
          "../alipay.rkt"
          "refund.rkt"
          "../private/alipay-time.rkt"
+         "../private/bounded-stream.rkt"
          "../private/model.rkt")
 
 (define sandbox-gateway "https://openapi-sandbox.dl.alipaydev.com/gateway.do")
@@ -54,6 +55,9 @@
   ;; Alipay's API uses UTC+08:00, regardless of the local host time zone.
   (epoch-seconds->gmt8-timestamp (current-seconds)))
 
+(module+ test
+  (provide default-transport))
+
 (define (default-transport url body)
   (define response
     (post url
@@ -67,11 +71,7 @@
   (dynamic-wind
     void
     (lambda ()
-      (define raw
-        (sync/timeout
-         15
-         (read-bytes-evt (add1 max-response-bytes)
-                         (response-output response))))
+      (define raw (read-bounded-stream (response-output response) max-response-bytes 15))
       (unless (and raw (bytes? raw)
                    (<= (bytes-length raw) max-response-bytes))
         (raise-query 'alipay-query-unavailable))
