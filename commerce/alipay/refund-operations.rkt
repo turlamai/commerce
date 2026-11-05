@@ -7,12 +7,14 @@
 (provide initialize-sqlite-alipay-refund-operations!
          request-alipay-full-refund!
          dispatch-alipay-full-refund-once!
+         dispatch-alipay-full-refund-via-client-once!
          reconcile-alipay-full-refund!
          alipay-full-refund-operation-status)
 
 (require db
          "../alipay.rkt"
          "refund.rkt"
+         (submod "client.rkt" internal)
          "../storage.rkt"
          "../private/model.rkt")
 
@@ -219,6 +221,20 @@
                (money-minor-units (alipay-binding-amount binding))
                environment)
     'unknown))
+
+;; Product-facing composition: validate the configured merchant and environment
+;; before consuming the durable dispatch attempt, then invoke the existing
+;; authorization and UNKNOWN-before-network gate. No retry is added.
+(define (dispatch-alipay-full-refund-via-client-once! path storage binding request-id
+                                                      #:environment environment
+                                                      #:operator operator
+                                                      #:authorize allow
+                                                      #:client client
+                                                      #:at [at (current-seconds)])
+  (validate-alipay-refund-client! client binding environment)
+  (dispatch-alipay-full-refund-once!
+   path storage binding request-id #:environment environment #:operator operator
+   #:authorize allow #:send-once (make-alipay-full-refund-sender client) #:at at))
 
 (define (reconcile-alipay-full-refund! path storage binding request-id
                                        #:environment environment

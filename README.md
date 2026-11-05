@@ -192,7 +192,8 @@ before any rollout. One-time prepaid service periods do not auto-renew.
 
 The optional Alipay refund operation ledger prevents repeating a money-moving
 request after a crash or timeout and accepts rights withdrawal only after a
-signed full-refund query. It does not activate refunds or merchant accounts.
+signed full-refund query. An explicitly configured Alipay client can be used by the authorized one-shot
+operator dispatch; its HTTP response never confirms a refund. Real sandbox refund, merchant approval and live operation remain gates.
 
 
 The Alipay operator checkout sample requires a **private, approved capability

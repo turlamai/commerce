@@ -15,7 +15,7 @@ business code is not a signed refund fact and may not withdraw Permit rights.
 
 Commerce's explicit Alipay refund-operations module is an **operator-only**
 API with a separately provisioned, durable SQLite operation ledger.
-No background scheduler, public endpoint or automatic network transport is added.
+No background scheduler or public endpoint is added. A deployment may explicitly supply the provided Alipay one-shot sender; it performs no call until an authorized operator dispatches an already-recorded request.
 
 1. An operator must be authorized by a deployment callback. The code verifies
    a paid/unrefunded Commerce order against its append-only checkout binding,
@@ -49,8 +49,11 @@ Restrict access to the operator process; the HTTP edge and signing worker
 do not need the refund ledger or merchant signing keys. Back it up with the
 payment journal.
 
-The caller explicitly supplies a trusted operator-identity authorizer
-and a signing/HTTP sender. This library does not invent an approved merchant,
+The caller explicitly supplies a trusted operator-identity authorizer and may use
+`dispatch-alipay-full-refund-via-client-once!` to connect the durable dispatch
+to a configured Alipay client. It checks app and environment before consuming
+an attempt, then binds the order, request ID and full amount. It sends once and
+returns no refund evidence. Never automatically resend an unknown outcome. This library does not invent an approved merchant,
 generate production keys, or initiate refunds by itself.
 A scheduled reconciliation operator should poll signed queries for unknown
 operations **without repeating the money-moving call**. Real sandbox/live

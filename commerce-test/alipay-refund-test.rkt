@@ -105,6 +105,8 @@
      #:timestamp "2026-10-30 12:31:00"))
   (check-equal? (cdr (assoc "method" params))
                 "alipay.trade.fastpay.refund.query")
+  (define query-content (string->jsexpr (cdr (assoc "biz_content" params))))
+  (check-equal? (hash-ref query-content 'query_options) '("gmt_refund_pay"))
   (define confirmed
     (verify-alipay-full-refund-query-response
      (response) public binding "refund_001"))
