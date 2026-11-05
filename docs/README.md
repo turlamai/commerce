@@ -23,6 +23,10 @@ operations. Do not duplicate a rule across several guides.
   Rivet, Glaze, Keel, Permit, products, and identity systems; it links to the
   canonical five-repository architecture.
 
+- [Product purchase progress](purchase-progress.md) — authenticated product-side checkout/read status, never authorization or a paid flag.
+
+- [Hosted consumer anti-rollback](hosted-consumer-watermarks.md) — signed grant/withdrawal high-water fencing for trusted product servers, not merchant approval.
+
 ## Production work
 
 - [Security](security.md) — trust domains, webhook authentication, keys,

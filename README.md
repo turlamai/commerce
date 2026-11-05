@@ -153,6 +153,21 @@ The default `commerce` facade does not expose provider secrets, raw webhook
 acceptance, network listeners, databases, or Permit signing. Those capabilities
 belong to explicit server-side modules.
 
+## Hosted rights anti-rollback
+
+The pilot [hosted consumer watermark](docs/hosted-consumer-watermarks.md)
+records a verified signed grant/withdrawal revision durably and rejects
+stale or changed-lineage replays. Signed withdrawal evidence is a denial,
+not a feature grant. The initial consumer storage is Racket-only and has
+not been integrated or deployed with Publy's TypeScript backend.
+
+## Product checkout/recovery progress
+
+The optional [authenticated product-scoped read](docs/purchase-progress.md)
+reports payment-processing, issuance, recorded credential and refund states.
+It never returns a client paid flag or authorizes features; the product owns
+identity, import confirmation and customer recovery.
+
 The read-only operator check `raco commerce doctor <database>` opens an
 existing schema-v8 service database through SQLite in **read-only mode**,
 prints a redacted JSON readiness snapshot, and exits nonzero on warnings or

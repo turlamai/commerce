@@ -63,6 +63,9 @@ do not log its returned bytes or pass the registry into untrusted code.
 ## Response behavior
 
 - `200`: signed proof or a typed no-access result. A
+  `status="recorded-withdrawal"` response now includes the **verified signed
+  withdrawal envelope and its latest revision** for the consumer's persistent
+  anti-rollback fence. It is always a denial, never a grant. A
   `status="verified-proof"` response contains the exact verified Permit
   envelope plus lineage/revision metadata. Other statuses (including
   `refund-pending`, `recorded-withdrawal`, `stale-revision`,
