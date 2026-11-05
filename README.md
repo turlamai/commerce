@@ -161,6 +161,20 @@ perform any necessary migration through the reviewed service runbook.
 
 ## Alipay Vibe Pay (integration candidate)
 
+**Publy checkout development boundary (Commerce #51):** the optional
+`commerce/alipay/checkout-coordinator` and
+`commerce/alipay/checkout-http` modules accept an authenticated
+service-to-service request with a durable one-time nonce, resolve the
+reviewed Offer and exact CNY price on the Commerce server, and return
+signed page-pay parameters for the same immutable order on safe retry.
+Neither a browser return nor the `checkout-ready` response asserts
+payment or Permit rights. See [ADR-0023](docs/decisions/0023-alipay-checkout-coordinator.md)
+and [ADR-0024](docs/decisions/0024-alipay-checkout-transport.md).
+This is a development-only loopback interface, **not a public payment API**:
+provision the replay/claim stores, isolate signing authority, obtain real
+merchant approval and verify the complete purchase-to-rights journey
+before any rollout. One-time prepaid service periods do not auto-renew.
+
 The optional Alipay refund operation ledger prevents repeating a money-moving
 request after a crash or timeout and accepts rights withdrawal only after a
 signed full-refund query. It does not activate refunds or merchant accounts.
