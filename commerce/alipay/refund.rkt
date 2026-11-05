@@ -96,7 +96,8 @@
   (signed-parameters
    binding key "alipay.trade.fastpay.refund.query"
    (hasheq 'out_trade_no (alipay-binding-order-id binding)
-           'out_request_no request-id)
+           'out_request_no request-id
+           'query_options (list "gmt_refund_pay"))
    timestamp))
 
 (define (verify-alipay-full-refund-query-response raw public-key-pem
