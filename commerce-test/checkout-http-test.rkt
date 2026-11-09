@@ -83,6 +83,11 @@
   ;; the same nonce cannot be replayed
   (define-values (replay-status _) (call service (body offering) "nonce_1234567890123456"))
   (check-equal? replay-status 403)
+  ;; a retry with the same request id but a fresh nonce resolves to one order
+  (define-values (retry-status retry-response) (call service (body offering) "nonce_abcdefghijklmnop"))
+  (check-equal? retry-status 200)
+  (check-equal? (hash-ref (bytes->jsexpr retry-response) 'order_id)
+                (hash-ref parsed 'order_id))
   ;; unadmitted offer is refused before any binding
   (define-values (bad-status _b) (call service (body "other-offer") "nonce_abcdefghijklmnop"))
   (check-equal? bad-status 403))

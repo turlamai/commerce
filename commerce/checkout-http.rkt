@@ -18,6 +18,7 @@
          racket/list
          racket/port
          racket/string
+         (except-in file/sha1 bytes->hex-string)
          permit/private/json
          web-server/http
          web-server/servlet-env
@@ -143,14 +144,32 @@
      #:seller-id (checkout-http-service-seller-id service)
      #:product-id product-id #:offer-id offer-id #:payment-method "alipay"
      #:transaction-type "one-time" #:amount (money "CNY" amount) #:at now)
-    (define order-id (string-append "ali" (bytes->hex-string (crypto-random-bytes 16))))
+    ;; A retry with the same product request id must resolve to the same
+    ;; merchant order; deriving the order id from request_id prevents a
+    ;; duplicate checkout when the first response was lost.
+    (define order-id
+      (string-append "ali"
+                     (substring (bytes->hex-string
+                                 (sha256-bytes (string->bytes/utf-8
+                                          (format "~a\0~a\0~a" subject-id offer-id request-id))))
+                                0 32)))
+    (define existing (storage-checkout-binding-ref (checkout-http-service-storage service) order-id))
+    (when existing
+      (unless (and (equal? (checkout-binding-provider existing) "alipay")
+                   (equal? (checkout-binding-product-id existing) product-id)
+                   (equal? (checkout-binding-offer-id existing) offer-id)
+                   (equal? (checkout-binding-subject-id existing) subject-id)
+                   (equal? (checkout-binding-currency existing) "CNY")
+                   (= (checkout-binding-amount-minor-units existing) amount))
+        (error 'checkout-body "request id bound to different checkout")))
+    (unless existing
+      (storage-create-checkout-binding!
+       (checkout-http-service-storage service)
+       (checkout-binding order-id "alipay" product-id offer-id subject-id "CNY" amount 2)
+       #:created-at now))
     (define binding
       (alipay-binding (checkout-http-service-app-id service) (checkout-http-service-seller-id service)
                       order-id offer-id subject-id (money "CNY" amount)))
-    (storage-create-checkout-binding!
-     (checkout-http-service-storage service)
-     (checkout-binding order-id "alipay" product-id offer-id subject-id "CNY" amount 2)
-     #:created-at now)
     (define fields ((checkout-http-service-signer service) binding))
     (unless (and (list? fields) (<= 1 (length fields) 32)
                  (for/and ([p (in-list fields)])
