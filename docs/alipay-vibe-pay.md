@@ -180,3 +180,23 @@ worked**. Before connecting real accounts, approve the merchant account and
 product category, confirm fees and refund rules, prove the whole CI matrix,
 then run a documented sandbox payment, refund and replay drill with sensitive
 fields redacted.
+
+## Authenticated hosted checkout HTTP edge
+
+`commerce/checkout-http.rkt` is the product-callable edge at
+`POST /v1/hosted/alipay-checkout`. It verifies the exact hosted-s2s HMAC,
+binds the service to product/issuer/subject/offer, claims the nonce durably,
+re-checks the private ADR-0019 admission and amount, writes the checkout
+binding, then returns `{status, order_id, gateway, fields}`. It never returns
+a merchant private key and does not contact Alipay.
+
+A retry with the same product `request_id` (even with a fresh nonce) resolves to
+the same merchant order; a conflicting binding is refused.
+
+```sh
+racket commerce/checkout-http.rkt   # requires deploy/checkout.env.example
+```
+
+Use a loopback listener behind a TLS reverse proxy restricted to the product
+service. It is still not a merchant admission or a public checkout: production
+requires the Alipay merchant gates, a stable HTTPS callback and a sandbox drill.
