@@ -15,7 +15,7 @@
 ```bash
 git clone https://github.com/turlamai/commerce.git
 cd commerce
-raco pkg install --auto --no-docs --name commerce .
+raco pkg install --auto --no-docs --name commerce --link "$PWD"
 ```
 
 普通产品安全地从默认 facade 开始：

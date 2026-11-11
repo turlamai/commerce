@@ -1,4 +1,8 @@
 [Unit]
+# DEPRECATED: single-role assembly. Use commerce-edge.service and
+# commerce-issuer.service instead (ADR-0020): the combined unit gives one
+# process both webhook exposure and Permit signing-key access. Kept only
+# as a historical reference.
 Description=Commerce service (Pancake webhook edge, projector, issuer worker)
 After=network-online.target
 Wants=network-online.target

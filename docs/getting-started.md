@@ -16,7 +16,7 @@ secret, network access, or real payment is required.
 ```bash
 git clone https://github.com/turlamai/commerce.git
 cd commerce
-raco pkg install --auto --no-docs --name commerce .
+raco pkg install --auto --no-docs --name commerce --link "$PWD"
 ```
 
 The package contains multiple collections. Product-safe code starts with:

@@ -39,8 +39,8 @@ operations. Do not duplicate a rule across several guides.
   backup/restore, and observability requirements.
 - [Runbook](runbook.md) — the operator's question-by-question answers with
   the runnable end-to-end journey.
-- [Deploying](../deploy/README.md) — configuration, systemd, and Docker
-  for the canonical service assembly.
+- [Deploying](../deploy/README.md) (English only) — configuration, systemd,
+  and Docker for the canonical service assembly.
 - [Roadmap](../ROADMAP.md) — bounded implementation milestones.
 
 ## Decisions
@@ -88,7 +88,15 @@ operations. Do not duplicate a rule across several guides.
 | `commerce/health.rkt` | readiness snapshot and stuck-work warnings |
 | `commerce/server.rkt` | HTTP webhook edge and claim portal |
 | `commerce/reconcile.rkt` | bounded provider-facts reconciliation |
-| `commerce/operator/cli.rkt` | `raco commerce` find/explain/redrive |
+| `commerce/admission.rkt` | provider admission records gate checkout |
+| `commerce/evidence.rkt` | independent evidence re-verification before signing |
+| `commerce/backup.rkt` | consistent snapshots and backup verification |
+| `commerce/retention.rkt` | retire expired unfulfilled claims |
+| `commerce/purchase-progress.rkt` | authenticated product-side progress read |
+| `commerce/checkout-http.rkt` | admitted, once-only hosted checkout transport |
+| `commerce/hosted-*.rkt` | development-stage hosted entitlement bridge (ADR-0021) |
+| `commerce/alipay.rkt` | Alipay adapter candidate (ADR-0022/0023/0024) |
+| `commerce/operator/cli.rkt` | `raco commerce` doctor/find/explain/redrive |
 | `commerce/private/` | implementation-only model and validation |
 | `commerce-test/` | behavior and invariant tests |
 | `examples/` | copyable newcomer paths |

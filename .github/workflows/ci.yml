@@ -69,7 +69,11 @@ jobs:
       - name: Check declared package dependencies
         run: raco setup --check-pkg-deps commerce
       - name: Build reference manual
-        run: raco scribble --htmls --dest "${{ runner.temp }}/commerce-doc" commerce-doc/scribblings/commerce.scrbl
+        run: |
+          raco scribble ++xref-in setup/xref load-collections-xref \
+            --htmls --dest "${{ runner.temp }}/commerce-doc" \
+            commerce-doc/scribblings/commerce.scrbl
+          test -s "${{ runner.temp }}/commerce-doc/commerce/index.html"
       - name: Run newcomer walkthrough
         run: racket examples/first-purchase.rkt
       - name: Require a clean generated tree
