@@ -59,16 +59,20 @@
            (not (product-in-signed-grants? credential product-id)))
        (hasheq 'status "invalid-proof")]
       [else
-       (let* ([policy (credential-status credential #:at at)]
-              [latest
-               (storage-latest-entitlement-revision
-                storage (hash-ref snapshot 'entitlement_id))])
+       (let ([policy (credential-status credential #:at at)])
+         ;; Freshness and refund state deny together or not at all:
+         ;; separate reads can straddle the transaction that records a
+         ;; withdrawal, combining a pre-withdrawal revision with a
+         ;; post-withdrawal (already resolved) refund check.
+         (define-values (latest unresolved-refund?)
+           (storage-latest-entitlement-revision-and-unresolved-refund
+            storage (hash-ref snapshot 'entitlement_id) subject-id offer-id))
          (cond
            [(or (not latest)
                 (not (= (entitlement-revision-revision latest)
                         (hash-ref snapshot 'revision))))
             (hasheq 'status "stale-revision")]
-           [(storage-unresolved-refund? storage subject-id offer-id)
+           [unresolved-refund?
             (hasheq 'status "refund-pending")]
            [(eq? (entitlement-revision-action revision) 'withdraw)
             ;; The latest withdrawal must be exportable as a VERIFIED signed
@@ -96,11 +100,13 @@
 (define (verify-snapshot-record storage snapshot
                                 issuer subject-type subject-id offer-id
                                 product-id trust-store at)
-  (define revision
-    (storage-latest-entitlement-revision
-     storage (hash-ref snapshot 'entitlement_id)))
+  ;; Same fused read as verify-signed-record: freshness and refund facts are
+  ;; mutually consistent, never straddling a committed withdrawal.
+  (define-values (revision unresolved-refund?)
+    (storage-latest-entitlement-revision-and-unresolved-refund
+     storage (hash-ref snapshot 'entitlement_id) subject-id offer-id))
   (cond
-    [(storage-unresolved-refund? storage subject-id offer-id)
+    [unresolved-refund?
      ;; Refunded evidence has been authenticated but not yet reflected in a
      ;; signed withdrawal revision. Never serve an older grant in that gap.
      (hasheq 'status "refund-pending")]

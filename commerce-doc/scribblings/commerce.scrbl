@@ -323,10 +323,18 @@ exactly as the claim incremented them.
 
 (storage-latest-entitlement-revision storage entitlement-id)
   -> (or/c entitlement-revision? #f)
+
+(storage-latest-entitlement-revision-and-unresolved-refund
+ storage entitlement-id subject-id offer-id)
+  -> (values (or/c entitlement-revision? #f) boolean?)
 }
 
 Readers expose durable lineage and revision state for worker snapshot
-preparation, crash reconciliation, and audit. Revision payload bytes are the
+preparation, crash reconciliation, and audit. The combined revision and
+refund reader returns both mutable facts from one consistent read
+transaction: hosted proof verification denies on freshness and refund
+state together, so reading them separately could straddle the
+transaction that records a withdrawal and serve a withdrawn grant. Revision payload bytes are the
 exact unsigned snapshot bytes, never signed credential bytes. No Permit
 signing, signed-credential persistence, claim delivery, or HTTP listener is
 included in this boundary.

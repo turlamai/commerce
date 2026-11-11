@@ -24,6 +24,16 @@ All notable changes to Commerce are documented here.
 
 ### Fixed
 
+- Close the hosted proof freshness race. Entitlement freshness and
+  unresolved-refund state were read in two separate autocommit
+  transactions, so a withdrawal committing between the two reads let a
+  refund already reflected in a signed withdrawal revision produce a
+  `verified-proof` for the withdrawn grant. The new
+  `storage-latest-entitlement-revision-and-unresolved-refund` reader
+  returns both facts from one consistent read transaction, and both
+  hosted proof verification steps now use it, denying on facts that were
+  never observed together.
+
 - Make the README quick start runnable: clone the repository, install it as a
   linked package, then run `examples/first-purchase.rkt`. Installing by URL
   and immediately running a repository-relative example could not work

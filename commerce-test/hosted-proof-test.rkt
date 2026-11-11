@@ -9,6 +9,7 @@
          commerce/storage
          commerce/storage/sqlite
          commerce/hosted-proof
+         commerce/private/storage-model
          permit/issuer
          racket/file
          file/sha1)
@@ -155,5 +156,80 @@
           ;; Revocation is not authorization; it still carries genuine
           ;; signed high-water evidence for consumer anti-rollback storage.
           (check-true (hash? (hash-ref revoked 'credential)))))
+      (lambda () (storage-close storage))))
+   (lambda () (delete-directory/files dir))))
+
+(test-case "proof freshness and refund facts survive a withdrawal racing the read"
+  (define dir (make-temporary-file "commerce-proof-freshness-~a" 'directory))
+  (dynamic-wind
+   void
+   (lambda ()
+     (define storage
+       (open-sqlite-commerce-storage (build-path dir "commerce.sqlite")))
+     (dynamic-wind
+      void
+      (lambda ()
+        (define (proof #:store [store storage]
+                       #:minimum [minimum #f]
+                       #:lineage [lineage #f])
+          (current-verified-entitlement-proof
+           store #:issuer issuer-name #:subject-type "account"
+           #:subject-id "customer-001" #:offer-id "taskly-pro-lifetime"
+           #:product-id "taskly"
+           #:authorize (lambda (_i _t _s _o _p) #t)
+           #:trust-store trust #:at "2026-10-18T00:00:00Z"
+           #:minimum-revision minimum
+           #:expected-entitlement-id lineage))
+        (define paid #"freshness-payment")
+        (define refunded #"freshness-refund")
+        (journal-accept! storage paid (event paid "freshness-paid" 'payment-succeeded 98)
+                         #:received-at 99)
+        (storage-project-next! storage #:processed-at 99)
+        (check-eq? (issuance-result-disposition
+                    (process-issuance-work! (worker) storage))
+                   'completed)
+        (define valid (proof))
+        (check-equal? (hash-ref valid 'status) "verified-proof")
+        (define entitlement-id (hash-ref valid 'entitlement_id))
+        ;; Reachability control: the pinned pre-refund grant verifies while
+        ;; no refund exists, so the denial below is not a vacuous default.
+        (check-equal? (hash-ref (proof #:minimum 0
+                                       #:lineage entitlement-id) 'status)
+                      "verified-proof")
+        ;; Race: a consumer pins revision 0 while the refund journal event,
+        ;; its projection and the signed withdrawal revision all commit
+        ;; before the proof reads its freshness/refund facts. The fused
+        ;; reader must observe the withdrawal — never serve the pinned
+        ;; grant from a pre-withdrawal snapshot of the two facts.
+        (define fused-calls 0)
+        (define original-fused
+          (commerce-storage-latest-revision-and-refund-lookup storage))
+        (define raced
+          (struct-copy commerce-storage storage
+                       [latest-revision-and-refund-lookup
+                        (lambda (entitlement-id subject-id offer-id)
+                          (set! fused-calls (add1 fused-calls))
+                          (when (= fused-calls 1)
+                            (journal-accept! storage refunded
+                                             (event refunded "freshness-refund" 'payment-refunded 110)
+                                             #:received-at 111)
+                            (storage-project-next! storage #:processed-at 112)
+                            (check-eq? (issuance-result-disposition
+                                        (process-issuance-work!
+                                         (worker 130 "2026-10-18T03:00:00Z")
+                                         storage))
+                                       'completed))
+                          (original-fused entitlement-id subject-id offer-id))]))
+        (define denied
+          (proof #:store raced #:minimum 0 #:lineage entitlement-id))
+        ;; The injection must have fired, or this passes vacuously.
+        (check-equal? fused-calls 1)
+        (check-equal? (hash-ref denied 'status) "stale-revision")
+        ;; The committed withdrawal still exports its signed high-water
+        ;; evidence for consumer anti-rollback storage.
+        (define revoked
+          (proof #:store raced #:minimum 1 #:lineage entitlement-id))
+        (check-equal? (hash-ref revoked 'status) "recorded-withdrawal")
+        (check-equal? (hash-ref revoked 'revision) 1))
       (lambda () (storage-close storage))))
    (lambda () (delete-directory/files dir))))

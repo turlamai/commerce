@@ -85,6 +85,7 @@
  storage-lineage-ref
  storage-entitlement-revision-ref
  storage-latest-entitlement-revision
+ storage-latest-entitlement-revision-and-unresolved-refund
  storage-claim-credential
  storage-mark-claim-notified
  storage-outbox-scan
@@ -378,6 +379,32 @@
      'storage-latest-entitlement-revision
      "non-empty opaque entitlement identifier" entitlement-id))
   ((commerce-storage-latest-revision-lookup storage) entitlement-id))
+
+;; The invariant behind hosted proof verification: entitlement freshness and
+;; unresolved-refund state deny independently, so they must also be observed
+;; together. A withdrawal committing between separate reads would combine a
+;; pre-withdrawal revision with a post-withdrawal (already resolved) refund
+;; check and serve the withdrawn grant. This reader returns both facts from
+;; one consistent storage snapshot; callers must not re-read either fact
+;; separately to make the decision.
+(define (storage-latest-entitlement-revision-and-unresolved-refund
+         storage entitlement-id subject-id offer-id)
+  (check-storage
+   'storage-latest-entitlement-revision-and-unresolved-refund storage)
+  (for ([label/value
+         (in-list
+          (list (list "entitlement identifier" entitlement-id)
+                (list "subject identifier" subject-id)
+                (list "offer identifier" offer-id)))]
+        #:unless (opaque-id? (second label/value)))
+    (raise-argument-error
+     'storage-latest-entitlement-revision-and-unresolved-refund
+     (format "non-empty opaque ~a up to 256 characters" (first label/value))
+     (second label/value)))
+  (define snapshot
+    ((commerce-storage-latest-revision-and-refund-lookup storage)
+     entitlement-id subject-id offer-id))
+  (values (vector-ref snapshot 0) (vector-ref snapshot 1)))
 
 ;; Fulfills a one-time claim: verifies the token, its state, and its window,
 ;; marks the claim fulfilled, and returns the exact signed envelope bytes.
