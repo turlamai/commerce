@@ -516,6 +516,18 @@ unsigned snapshot bytes, never signed credential bytes.}
          (or/c entitlement-revision? #f)]{
 Returns the newest recorded revision of one lineage.}
 
+@defproc[(storage-latest-entitlement-revision-and-unresolved-refund
+          [storage commerce-storage?]
+          [entitlement-id string?]
+          [subject-id string?]
+          [offer-id string?])
+         (values (or/c entitlement-revision? #f) boolean?)]{
+Returns the newest recorded revision and the unresolved-refund state as
+two facts observed at one instant: one read transaction backs both
+values. Hosted proof verification denies on freshness and refund state
+together, so reading them separately could straddle the transaction that
+records a withdrawal and serve a withdrawn grant.}
+
 @defstruct*[entitlement-lineage ([entitlement-id string?]
                                  [issuer string?]
                                  [subject-type string?]

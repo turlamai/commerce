@@ -1764,6 +1764,23 @@ SQL
     (row->revision
      (query-maybe-row connection select-latest-revision-sql entitlement-id)))
 
+  ;; Freshness and refund state must be observed at one instant. Separate
+  ;; autocommit reads can straddle the transaction that records a withdrawal,
+  ;; so a proof could combine a pre-withdrawal revision with a post-withdrawal
+  ;; (resolved) refund check and serve the withdrawn grant. One read
+  ;; transaction makes the two facts mutually consistent.
+  (define (latest-revision-and-refund entitlement-id subject-id offer-id)
+    (check-open)
+    ;; call-with-transaction passes one value through, so the two facts
+    ;; travel as a vector and the facade unpacks them.
+    (call-with-transaction connection
+      (lambda ()
+        (vector
+         (row->revision
+          (query-maybe-row connection select-latest-revision-sql entitlement-id))
+         (not (zero? (query-value connection select-unresolved-refund-sql
+                                  subject-id offer-id)))))))
+
   (define (unresolved-refund subject-id offer-id)
     (check-open)
     (not (zero? (query-value connection select-unresolved-refund-sql
@@ -1779,6 +1796,7 @@ SQL
    lookup-projection lookup-work
    claim-work complete-work release-work
    entitlement-ref lineage-ref revision-ref latest-revision
+   latest-revision-and-refund
    claim-credential mark-claim-notified
    outbox-scan order-journal order-outbox issued-credential-ref redrive-work
    readiness-snapshot retire-expired-claims

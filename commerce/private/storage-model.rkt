@@ -22,7 +22,8 @@
                   order-lookup outbox-lookup
                   issuance-claim issuance-complete issuance-release
                   entitlement-lookup lineage-lookup revision-lookup
-                  latest-revision-lookup claim-lookup claim-notified
+                  latest-revision-lookup latest-revision-and-refund-lookup
+                  claim-lookup claim-notified
                   outbox-scan order-journal order-outbox
                   issued-credential-lookup redrive readiness
                   retire-expired-claims
