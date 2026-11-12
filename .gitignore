@@ -13,3 +13,6 @@
 /secrets/
 /var/
 
+
+# Generated manual output. Rebuild with raco setup / raco scribble.
+/commerce-doc/doc/
