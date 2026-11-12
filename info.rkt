@@ -1,5 +1,7 @@
 #lang info
 
+(define name "commerce")
+
 (define collection 'multi)
 (define deps
   '(["base" #:version "9.0"]
@@ -19,3 +21,7 @@
   '(("commerce" "commerce/operator/cli.rkt"
      "Commerce operator tools (find, explain, redrive)" "50")))
 
+;; `deploy/` holds the hosted service deployment units (Dockerfile, systemd),
+;; not packaged library source (same discipline as permit's source-omit-files).
+(define source-omit-files
+  '("deploy"))
