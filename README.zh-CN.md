@@ -32,6 +32,8 @@ owner 安全的租约状态机和事务型 lineage 写入器，显式 issuer wor
 签名、把签名信封落为持久凭证证据，交给客户一枚一次性 claim token，并提供
 退款与运营重放面。
 
+Commerce 尚未发布到 Racket 官方包目录，请从本仓库安装：
+
 ```bash
 git clone https://github.com/turlamai/commerce.git
 cd commerce
@@ -129,12 +131,24 @@ Commerce 只保存确定性编排需要的标识、投影和审计证据。
 (require commerce/pancake)   ; Pancake 鉴权与主动订单证明
 (require commerce/permit)    ; 经审阅的 Offer policy 到 Permit 快照
 (require commerce/issuer)    ; 显式签发 worker：认领、签名、交付
+(require commerce/admission) ; 渠道准入记录，未准入不结账
+(require commerce/evidence)  ; 签名前独立复核证据
 (require commerce/operator)  ; 运营 find/explain/redrive 面
 (require commerce/log)       ; 结构化脱敏事件日志
 (require commerce/health)    ; readiness 快照与卡死工作告警
 (require commerce/server)    ; HTTP webhook 边界与 claim 门户
 (require commerce/reconcile) ; 有界渠道事实对账
+(require commerce/backup)    ; 一致性快照与备份校验
+(require commerce/retention) ; 回收过期的未领取 claim
+(require commerce/purchase-progress) ; 产品侧购买进度读取（已鉴权）
+(require commerce/checkout-http) ; 准入后的仅一次托管结账传输
 ```
+
+开发阶段的托管服务家族（`commerce/hosted-registry`、
+`commerce/hosted-auth`、`commerce/hosted-admission`、
+`commerce/hosted-entitlement`、`commerce/hosted-proof`、
+`commerce/hosted-http`）与支付宝 adapter 候选（`commerce/alipay`）
+由 `docs/` 下的设计文档承载，不冻结在本清单里。
 
 默认的 `commerce` facade 不暴露渠道密钥、原始 Webhook 接收、网络监听、数据库
 或 Permit 签名能力。这些能力必须从明确的服务端模块显式引入。

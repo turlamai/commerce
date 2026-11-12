@@ -37,6 +37,9 @@ durable credential evidence, and hands the customer a one-time claim token,
 the refund and operator replay surface, tests, and one runnable purchase
 walkthrough.
 
+Commerce is not yet published to the official Racket package catalog; install
+from this repository:
+
 ```bash
 git clone https://github.com/turlamai/commerce.git
 cd commerce
@@ -142,12 +145,25 @@ only the identifiers and projections required for deterministic orchestration.
 (require commerce/pancake)   ; Pancake authentication and active order proof
 (require commerce/permit)    ; reviewed Offer policy to Permit snapshots
 (require commerce/issuer)    ; explicit issuer worker: claim, sign, deliver
+(require commerce/admission) ; provider admission records gate checkout
+(require commerce/evidence)  ; independent re-verification before signing
 (require commerce/operator)  ; operator find/explain/redrive surface
 (require commerce/log)       ; structured redacted event logging
 (require commerce/health)    ; readiness snapshot and stuck-work warnings
 (require commerce/server)    ; HTTP webhook edge and claim portal
 (require commerce/reconcile) ; bounded provider-facts reconciliation
+(require commerce/backup)    ; consistent snapshots and backup verification
+(require commerce/retention) ; retire expired unfulfilled claims
+(require commerce/purchase-progress) ; authenticated product-side progress read
+(require commerce/checkout-http) ; admitted, once-only hosted checkout transport
 ```
+
+The development-stage hosted-service family (`commerce/hosted-registry`,
+`commerce/hosted-auth`, `commerce/hosted-admission`,
+`commerce/hosted-entitlement`, `commerce/hosted-proof`,
+`commerce/hosted-http`) and the Alipay adapter candidate
+(`commerce/alipay`) are documented in their design notes under `docs/`,
+not frozen in this list.
 
 The default `commerce` facade does not expose provider secrets, raw webhook
 acceptance, network listeners, databases, or Permit signing. Those capabilities

@@ -1,6 +1,8 @@
 # Changelog
 
-All notable changes to Commerce are documented here.
+All notable changes to Commerce are documented here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/), and this project adheres to
+[Semantic Versioning](https://semver.org/) once a public release is tagged.
 
 ## Unreleased
 
@@ -21,6 +23,24 @@ All notable changes to Commerce are documented here.
   work counts, claim state and typed health warnings in JSON. It exits 1 for
   unhealthy or incompatible databases and never bootstraps, migrates or
   creates indexes while inspecting the service.
+
+- Expand the Scribble manual from one indexed facade to the full public
+  surface: indexed `@defmodule`/`@defproc`/`@defstruct` coverage for the
+  provider boundary, Pancake authentication and active order verification,
+  journal, storage and the SQLite backend, Permit policy mapping, the issuer
+  worker, admission, evidence verification, reconciliation, the HTTP edge,
+  backup and retention, purchase progress, the checkout transport, logging,
+  health, and the operator surface. The hosted-service family and the Alipay
+  adapter candidate are documented as development-stage sections that defer
+  to their design notes. The manual gains a stable `commerce` anchor, a
+  Further reading section, and builds with a collections-xref artifact
+  assertion in CI.
+
+- Document every example in a new `examples/README.md`, including the
+  dependency note for the Alipay checkout example's implementation-only
+  import, and complete the documentation map's source entry-point table with
+  the admission, evidence, backup, retention, purchase-progress,
+  checkout-http, hosted, and Alipay modules.
 
 ### Fixed
 
@@ -48,6 +68,15 @@ All notable changes to Commerce are documented here.
 - Give the Scribble manual a `@defmodule[commerce]` anchor and convert the
   Money and Offer value sections from `@verbatim` signatures to indexed
   `@defproc` entries. Larger reference coverage remains tracked separately.
+
+- Update the storage section of the manual from the retired "Schema v3"
+  description to the current v8 schema behavior, and replace the READMEs'
+  plain `Public modules` list with the complete explicit-module surface.
+
+- Unify the install instructions on the linked-checkout form with an explicit
+  "not yet published to the official package catalog" statement in both
+  languages, and mark the deprecated single-role `commerce.service` unit
+  as historical in favor of the edge/issuer split (ADR-0020).
 
 - State the verified-evidence boundary accurately in `docs/security.md`:
   re-verification runs when the issuance worker is assembled with
