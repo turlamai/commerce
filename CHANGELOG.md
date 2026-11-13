@@ -44,6 +44,15 @@ All notable changes to Commerce are documented here. The format is based on
 
 ### Fixed
 
+- Replace all five `permit/private/json` imports with the documented
+  `permit/json` surface. Require Permit `0.2.1` and pin CI/Docker to
+  `61211f7bf320520c0d3627c4d715e7de7fee52b2`; add a reader-based dependency
+  boundary regression. Parsing, HTTP responses and storage schemas are unchanged.
+- Record the family commercialization sequence, direct-sale versus Apple
+  responsibilities and future store adapter acceptance. Correct stale signer
+  gate wording: #10's implementation is complete; production deployment and
+  merchant/live evidence remain required.
+
 - Close the hosted proof freshness race. Entitlement freshness and
   unresolved-refund state were read in two separate autocommit
   transactions, so a withdrawal committing between the two reads let a

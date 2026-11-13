@@ -81,10 +81,11 @@ a deployment injection mechanism, not as a long-term secret-management design.
 Both `issuance-worker` and `issuance-result` are opaque to diagnostic
 formatting, preventing accidental printing of a signing-key field or the
 one-time claim token returned by a successful issuance. This does not
-isolate memory or permissions: the current deployment still loads the raw
-Permit signing key into the same process as the Commerce HTTP edge.
-Production signing should run through a narrow signer interface so the
-HTTP-facing process cannot read/export the raw key. Key identifiers and
+isolate memory or permissions. The local `all` role combines the edge and
+signer and is refused in production. Production uses separate `edge` and
+`issuer` roles and OS identities so the HTTP process cannot read the signing
+key; effective permissions still require deployment evidence (ADR-0020).
+Key identifiers and
 rotation state are recorded with every issuance.
 
 Signing authority is bounded by the verified-evidence boundary

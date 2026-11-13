@@ -34,8 +34,8 @@ jobs:
         shell: bash
         run: |
           git clone --no-checkout https://github.com/turlamai/permit.git "$RUNNER_TEMP/permit-src"
-          git -C "$RUNNER_TEMP/permit-src" checkout --detach ed32d0eec463665e470657e54d222a1b98148a1e
-          test "$(git -C "$RUNNER_TEMP/permit-src" rev-parse HEAD)" = "ed32d0eec463665e470657e54d222a1b98148a1e"
+          git -C "$RUNNER_TEMP/permit-src" checkout --detach 61211f7bf320520c0d3627c4d715e7de7fee52b2
+          test "$(git -C "$RUNNER_TEMP/permit-src" rev-parse HEAD)" = "61211f7bf320520c0d3627c4d715e7de7fee52b2"
       - name: Install pinned Permit package
         shell: bash
         run: raco pkg install --copy --auto --no-docs --name permit "$RUNNER_TEMP/permit-src"
@@ -59,8 +59,8 @@ jobs:
         shell: bash
         run: |
           git clone --no-checkout https://github.com/turlamai/permit.git "$RUNNER_TEMP/permit-src"
-          git -C "$RUNNER_TEMP/permit-src" checkout --detach ed32d0eec463665e470657e54d222a1b98148a1e
-          test "$(git -C "$RUNNER_TEMP/permit-src" rev-parse HEAD)" = "ed32d0eec463665e470657e54d222a1b98148a1e"
+          git -C "$RUNNER_TEMP/permit-src" checkout --detach 61211f7bf320520c0d3627c4d715e7de7fee52b2
+          test "$(git -C "$RUNNER_TEMP/permit-src" rev-parse HEAD)" = "61211f7bf320520c0d3627c4d715e7de7fee52b2"
       - name: Install pinned Permit package
         shell: bash
         run: raco pkg install --copy --auto --no-docs --name permit "$RUNNER_TEMP/permit-src"

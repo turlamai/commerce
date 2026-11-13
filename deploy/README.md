@@ -107,7 +107,7 @@ signal handler is required for correctness.
 
 ## Docker
 
-The Dockerfile pins Permit to `ed32d0eec463665e470657e54d222a1b98148a1e`, the same revision as CI.
+The Dockerfile pins Permit to `61211f7bf320520c0d3627c4d715e7de7fee52b2`, the same revision as CI.
 The default Racket base image is a mutable tag suitable only for development.
 For a release, select and independently verify an image digest, then pass
 `--build-arg RACKET_IMAGE=racket/racket@sha256:<verified-digest>`.

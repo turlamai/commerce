@@ -9,7 +9,7 @@
 
 (require racket/file
          racket/list
-         permit/private/json)
+         permit/json)
 
 ;; A transparent struct leaks file-backed HMAC secrets through ~v/~s logging.
 ;; Keep the service registry opaque; only the explicit trusted key resolver

@@ -1,5 +1,13 @@
 # Commerce
 
+For the product-family rights system, direct sales and future Apple purchases,
+see the [commercialization plan](docs/commercialization.md). Apple Developer
+membership is distribution capability, not a ready cross-platform license service.
+
+Server integrations use the documented `permit/json` strict reader rather
+than private Permit modules. Source builds require Permit `0.2.1` or newer;
+CI and Docker pin the exact source commit. No release is published by this change.
+
 **One commercial truth for every product — payment events in, signed product rights out.**
 
 [![CI](https://github.com/turlamai/commerce/actions/workflows/ci.yml/badge.svg)](https://github.com/turlamai/commerce/actions/workflows/ci.yml) ![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE) ![Stage](https://img.shields.io/badge/stage-M3%20Subs-C15F3C)

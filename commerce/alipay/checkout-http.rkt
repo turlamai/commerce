@@ -6,7 +6,7 @@
          serve-alipay-checkout-http-endpoint)
 
 (require json racket/list racket/string net/url web-server/http web-server/servlet-env
-         permit/private/json
+         permit/json
          "../main.rkt" "../storage.rkt" "../hosted-auth.rkt"
          "../private/model.rkt" "../private/alipay-time.rkt"
          "checkout-coordinator.rkt")

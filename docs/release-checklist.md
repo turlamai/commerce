@@ -1,6 +1,6 @@
 # Commerce release evidence and go-live gates
 
-**Status: not a production-readiness certificate.** A green test suite, simulated checkout, or successful container build cannot substitute for verified provider eligibility, a trustworthy signer boundary, or an approved live purchase. Track issues [#10](https://github.com/turlamai/commerce/issues/10), [#5](https://github.com/turlamai/commerce/issues/5), [#4](https://github.com/turlamai/commerce/issues/4) separately.
+**Status: not a production-readiness certificate.** A green test suite, simulated checkout, or successful container build cannot substitute for verified provider eligibility, deployed signer evidence, or an approved live purchase. [#10](https://github.com/turlamai/commerce/issues/10) completed the verified-evidence implementation; its deployment checks below remain required. Merchant admission [#5](https://github.com/turlamai/commerce/issues/5) and the live journey [#4](https://github.com/turlamai/commerce/issues/4) remain separate gates.
 
 This is the single place to record *release evidence requirements*, not a duplicate of protocol contracts. Definitions and threat models live in [security](security.md), [provider contract](provider-contract.md), [Permit integration](permit-integration.md), [operations](operations.md), [runbook](runbook.md), [deployment](../deploy/README.md), and [ADR-0020](decisions/0020-split-service-roles.md).
 
@@ -11,10 +11,10 @@ This is the single place to record *release evidence requirements*, not a duplic
 - [ ] Review user-facing change notes, English/Chinese quick starts, API/CLI examples, migration compatibility and package-install instructions. Confirm each command from a clean checkout.
 - [ ] Rehearse deployment from a pinned artifact and a tested rollback; identify the owner who can stop a rollout. Record where evidence is kept **without** embedding private data in Git.
 
-## 2. Signer and customer-rights boundary — blocker #10
+## 2. Signer and customer-rights boundary — deployment gate
 
 - [ ] Verify separate OS identities, actual filesystem permissions and key-purpose segregation; the HTTP edge cannot read Permit private keys.
-- [ ] Address the outstanding **shared writable SQLite database** authorization risk with independently authenticated signing intents or an equally reviewed, unforgeable evidence path. Splitting processes alone is insufficient.
+- [ ] Deploy the ADR-0020 issuer-side evidence verifier with pinned provider public keys and reviewed policy. Independently re-verify grants and withdrawals and exercise the documented forged-row refusals. #10 completed this implementation; splitting processes alone or omitting `#:evidence-verifier` is insufficient. Review ADR-0020's remaining checkout/identity and shared-database limitations explicitly.
 - [ ] Reject test/production confusion, an unknown issuer/key/policy, unsigned or tampered evidence, a fixture offer used for production, and an unauthorized subject change.
 - [ ] Exercise signer outage, retry, lease expiry/loss, crash after signing but before commit, duplicate and delayed events, refund or chargeback, and key rotation. Confirm no extra charge or unintended lineage revision.
 - [ ] Audit logs and diagnostic formatting for accidental private key, token, personal-data and provider-secret disclosure; verify an encrypted-backup restore and separation of duty.
@@ -32,7 +32,7 @@ This is the single place to record *release evidence requirements*, not a duplic
 
 - [ ] Confirm the [private vulnerability report path](../SECURITY.md) is available and no public PR or issue contains raw secrets or payment data.
 - [ ] Confirm retention, user-data export/deletion, backups, access control, disaster recovery, merchant support handoff and customer-facing contact/recovery paths are documented and rehearsed.
-- [ ] Capture an explicit go/no-go decision signed off by the responsible human operator. If any #10/#5/#4 blocker remains, mark **NO-GO** for valuable live issuance.
+- [ ] Capture an explicit go/no-go decision signed off by the responsible human operator. If signer deployment, #5 admission or #4 live evidence is missing, mark **NO-GO** for valuable live issuance, even though #10's implementation is closed.
 
 ## Release record template (store evidence outside the repository)
 

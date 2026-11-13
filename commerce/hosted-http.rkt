@@ -11,7 +11,7 @@
          net/url
          racket/list
          racket/string
-         permit/private/json
+         permit/json
          permit/trust
          web-server/http
          web-server/servlet-env

@@ -60,6 +60,11 @@ product demand, per M4.
 
 ## M4 — Additional channels
 
+The [commercialization plan](docs/commercialization.md) defines the family-wide
+rights and recovery goal, direct-sale versus Apple ownership, and an ordered
+acceptance sequence. Apple Developer membership does not implement a store
+adapter; no existing product gains a paywall from this roadmap.
+
 - [ ] ZPAY one-time purchase adapter
 - [ ] Apple App Store receipt exchange
 - [ ] Google Play receipt exchange
@@ -76,7 +81,8 @@ The gptp-studio payment-evidence-derived maintenance window was implemented
 in merged PR #2 (issue #1 is closed). Do not reopen the completed policy slice
 to substitute for live-product evidence. The remaining next milestone is an
 approved first commercial canary, blocked by provider admission (#5), a
-trustworthy signing-intent boundary (#10), and a live
+deployed signing-evidence and OS-permission verification (the implementation
+in #10 is complete; see ADR-0020), and a live
 payment-to-claim/import/recovery drill (#4). Pin Commerce and Permit commits
 and the reviewed product policy before the drill.
 

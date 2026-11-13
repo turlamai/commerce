@@ -29,6 +29,9 @@ operations. Do not duplicate a rule across several guides.
 
 ## Production work
 
+- [Product-family commercialization plan](commercialization.md) — direct-sale
+  and Apple ownership, rights profiles, recovery, delivery slices and evidence.
+
 - [Security](security.md) — trust domains, webhook authentication, keys,
   personal data, and failure behavior.
 - [Private vulnerability reporting](../SECURITY.md) — confidential disclosure

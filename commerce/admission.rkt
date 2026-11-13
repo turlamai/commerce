@@ -10,7 +10,7 @@
 
 (require racket/file
          racket/list
-         permit/private/json
+         permit/json
          "private/model.rkt")
 
 (struct checkout-capability (offer product method kind currency price min max))

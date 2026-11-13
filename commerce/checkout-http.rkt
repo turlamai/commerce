@@ -19,7 +19,7 @@
          racket/port
          racket/string
          (except-in file/sha1 bytes->hex-string)
-         permit/private/json
+         permit/json
          web-server/http
          web-server/servlet-env
          "admission.rkt"

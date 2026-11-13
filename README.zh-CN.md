@@ -1,5 +1,13 @@
 # Commerce
 
+产品家族的统一权益、独立分发与未来 Apple 内购接入，见
+[商业化推进方案](docs/commercialization.md)。Apple Developer 会员提供分发能力，
+不等于已有跨平台授权服务；各产品的定价与权益范围仍由产品仓库定义。
+
+服务端改用公开的 `permit/json` 严格读取接口，不再依赖 Permit 私有模块。
+源码构建要求 Permit `0.2.1` 或更新版本；CI 与 Docker 固定同一源码提交。
+本次改动不发布新版本。
+
 **所有产品，共用一份商业真相——支付事件进入，签名产品权益输出。**
 
 [![CI](https://github.com/turlamai/commerce/actions/workflows/ci.yml/badge.svg)](https://github.com/turlamai/commerce/actions/workflows/ci.yml) ![Racket](https://img.shields.io/badge/Racket-9F1D20?logo=racket&logoColor=white) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE) ![Stage](https://img.shields.io/badge/stage-M3%20Subs-C15F3C)
