@@ -6,6 +6,12 @@ All notable changes to Commerce are documented here. The format is based on
 
 ## Unreleased
 
+### Fixed
+
+- Accept standard uppercase HTTP POST at the Alipay callback servlet. A real
+  loopback regression now exercises valid/repeated callbacks and method,
+  content-type and signature rejection through the deployed HTTP boundary.
+
 ### Added
 
 - Add an opt-in loopback Alipay checkout handler using the existing scoped

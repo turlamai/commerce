@@ -128,7 +128,7 @@
          (cond
            [(not (regexp-match? #rx"^/webhooks/alipay$" route))
             (problem 404 "not found")]
-           [(not (equal? (request-method request) #"post"))
+           [(not (equal? (request-method request) #"POST"))
             (problem 405 "method not allowed")]
            [else
             (let ([content-type
@@ -150,6 +150,7 @@
      #:port port
      #:listen-ip listen-ip
      #:command-line? #f
+     #:launch-browser? #f
      #:servlet-path "/webhooks/alipay"
      #:servlet-regexp #rx"^/webhooks/alipay$"))
   (lambda () (custodian-shutdown-all custodian)))

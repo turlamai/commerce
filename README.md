@@ -366,3 +366,5 @@ normative document update.
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
+
+The callback servlet accepts standard HTTP `POST`; a loopback HTTP regression verifies authentication and idempotent retries.

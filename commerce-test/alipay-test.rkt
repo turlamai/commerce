@@ -14,7 +14,9 @@
          rackunit
          racket/file
          racket/list
-         racket/string)
+         racket/string
+         racket/tcp
+         (prefix-in http: net/http-easy))
 
 ;; Generate fixture key material during the test, never commit a private key
 ;; or accept a string that has not actually passed RSA2 verification.
@@ -353,6 +355,43 @@
            (bytes-append payload #"&app_id=forged")))
         (check-equal? tampered-status 401)
         (check-equal? tampered-body #"failure")
+        ;; Exercise the actual servlet, not only the direct handler. HTTP
+        ;; method bytes arrive uppercase; authentication must remain intact.
+        (define reservation (tcp-listen 0 4 #t "127.0.0.1"))
+        (define-values (_host port _remote _remote-port)
+          (tcp-addresses reservation #t))
+        (tcp-close reservation)
+        (define listener-owner (make-custodian))
+        (parameterize ([current-custodian listener-owner])
+          (thread (lambda () (serve-alipay-webhook-endpoint endpoint #:port port))))
+        (define (stop) (custodian-shutdown-all listener-owner))
+        (define url (format "http://127.0.0.1:~a/webhooks/alipay" port))
+        (define (http-post bytes [type "application/x-www-form-urlencoded"])
+          (http:post url #:headers (hash 'content-type type) #:data bytes
+                     #:max-attempts 1 #:max-redirects 0
+                     #:timeouts (http:make-timeout-config #:connect 1 #:request 5)))
+        (dynamic-wind
+         void
+         (lambda ()
+           (let wait ([remaining 100])
+             (unless (with-handlers ([exn:fail? (lambda (_) #f)])
+                       (http:get url #:max-attempts 1 #:max-redirects 0
+                                 #:timeouts (http:make-timeout-config #:connect 0.1 #:request 0.2)))
+               (when (zero? remaining) (error 'listener "loopback startup timed out"))
+               (sleep 0.02) (wait (sub1 remaining))))
+           (define first (http-post payload))
+           (check-equal? (http:response-status-code first) 200)
+           (check-equal? (http:response-body first) #"success")
+           (define repeated (http-post payload))
+           (check-equal? (http:response-status-code repeated) 200)
+           (check-equal? (http:response-body repeated) #"success")
+           (check-equal? (length (storage-order-journal storage "alipay" "order_test_001")) 1)
+           (check-equal? (http:response-status-code
+                         (http-post (bytes-append payload #"&app_id=forged"))) 401)
+           (check-equal? (http:response-status-code (http-post payload "application/json")) 415)
+           (check-equal? (http:response-status-code
+                         (http:get url #:max-attempts 1 #:max-redirects 0)) 405))
+         stop)
         (define offline
           (make-alipay-webhook-endpoint
            #:app-id "2026000000000000"

@@ -200,3 +200,12 @@ racket commerce/checkout-http.rkt   # requires deploy/checkout.env.example
 Use a loopback listener behind a TLS reverse proxy restricted to the product
 service. It is still not a merchant admission or a public checkout: production
 requires the Alipay merchant gates, a stable HTTPS callback and a sandbox drill.
+
+### Callback HTTP boundary
+
+The callback servlet accepts standard uppercase `POST` requests at
+`/webhooks/alipay` with `application/x-www-form-urlencoded` content. Other
+methods return 405 and unsupported content types return 415. Reaching this
+route is not payment proof: signature, immutable checkout binding and an
+independently signed order query must pass before durable acknowledgement.
+The loopback HTTP regression covers these gates and exact callback retries.
