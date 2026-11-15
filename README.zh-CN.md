@@ -313,3 +313,5 @@ raco setup --check-pkg-deps commerce
 ## 许可证
 
 Apache-2.0，见 [LICENSE](LICENSE)。
+
+回调 servlet 接受标准 HTTP `POST`；回环 HTTP 回归覆盖验签门禁与重复通知幂等。
