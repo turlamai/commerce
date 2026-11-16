@@ -27,6 +27,7 @@
          racket/match
          racket/string
          "alipay.rkt"
+         "alipay/reconcile.rkt"
          "alipay/refund.rkt"
          "pancake.rkt"
          "permit.rkt"
@@ -46,13 +47,16 @@
 ;; must never leak through diagnostic printing. The binding lookup reads the
 ;; append-only checkout binding table; it must not be able to mutate it.
 (struct issuance-evidence-verifier (catalog alipay-public-key-pem
-                                            pancake-keyring binding-lookup))
+                                            pancake-keyring binding-lookup
+                                            alipay-app-id alipay-seller-id))
 
 (define max-evidence-bytes 4096)
 
 (define (make-issuance-evidence-verifier
          #:catalog catalog
          #:alipay-public-key-pem [alipay-public-key-pem #f]
+         #:alipay-app-id [alipay-app-id #f]
+         #:alipay-seller-id [alipay-seller-id #f]
          #:pancake-keyring [pancake-keyring default-pancake-webhook-keyring]
          #:binding-lookup [binding-lookup #f])
   (unless (permit-policy-catalog? catalog)
@@ -75,8 +79,13 @@
      'make-issuance-evidence-verifier
      "(or/c #f (procedure/c stable-id? (or/c checkout-binding? #f)))"
      binding-lookup))
+  (unless (or (and (not alipay-app-id) (not alipay-seller-id))
+              (and (opaque-id? alipay-app-id) (opaque-id? alipay-seller-id)))
+    (raise-argument-error 'make-issuance-evidence-verifier
+      "both trusted Alipay app and seller ids, or neither" #f))
   (issuance-evidence-verifier
-   catalog alipay-public-key-pem pancake-keyring binding-lookup))
+   catalog alipay-public-key-pem pancake-keyring binding-lookup
+   alipay-app-id alipay-seller-id))
 
 ;; Fences the claimed outbox intent against the journaled event and the
 ;; pinned catalog. The claimed Offer must equal the journal event's Offer,
@@ -334,11 +343,27 @@
         'evidence-verifier-unconfigured
         "no trusted Alipay public key is configured for evidence re-verification"
         (hash 'sequence (journal-record-sequence record))))
-     (define notice
-       (verify-alipay-notification
-        (parse-alipay-form payload) pem))
-     (alipay-notification-matches! notice record)
-     (verify-binding! verifier record (payment-event-amount event))]
+     (verify-binding! verifier record (payment-event-amount event))
+     (cond
+       [(string-prefix? (payment-event-event-id event) "return-query:")
+        (define app (issuance-evidence-verifier-alipay-app-id verifier))
+        (define seller (issuance-evidence-verifier-alipay-seller-id verifier))
+        (unless (and app seller)
+          (raise-commerce 'evidence-verifier-unconfigured
+            "signed return reconciliation requires trusted merchant identity" (hash)))
+        (define binding
+          (alipay-binding app seller
+            (payment-event-order-id event) (payment-event-offer-id event)
+            (payment-event-subject-id event) (payment-event-amount event)))
+        (define verified
+          (verify-alipay-return-query payload (journal-record-evidence record) pem binding))
+        (unless (equal? verified event)
+          (raise-commerce 'evidence-field-mismatch
+            "signed reconciliation differs from journaled payment" (hash)))]
+       [else
+        (define notice
+          (verify-alipay-notification (parse-alipay-form payload) pem))
+        (alipay-notification-matches! notice record)])]
     [(and (string=? (payment-event-provider event) "alipay")
           (eq? (payment-event-kind event) 'payment-refunded))
      (verify-alipay-refund! verifier record)]

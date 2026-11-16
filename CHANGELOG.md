@@ -14,6 +14,11 @@ All notable changes to Commerce are documented here. The format is based on
 
 ### Added
 
+- Add explicit lost-notification reconciliation from a signed Alipay page
+  return and independently signed successful order query. The issuer repeats
+  both signature checks against trusted merchant identity and durable checkout
+  state. This is not a redirect-only grant or a public recovery endpoint.
+
 - Add an opt-in loopback Alipay checkout handler using the existing scoped
   service MAC and replay contract. It resolves pricing from trusted server
   policy and returns a signed request, never proof of payment. It is not a

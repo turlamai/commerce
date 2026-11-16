@@ -2,7 +2,7 @@
 
 ;; Alipay Vibe Pay Basic Collection (RSA2 public-key mode). No merchant API
 ;; credentials, HTTP client, or private keys are loaded by this module.
-;; `return_url` is never payment evidence. A caller must actively query the
+;; A redirect alone is never payment evidence. A caller must actively query the
 ;; merchant order before supplying matching verified order facts.
 (provide
  alipay-signing-content
