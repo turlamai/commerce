@@ -238,6 +238,8 @@ re-verifies both proofs. A redirect or query alone grants nothing; this supplies
 no public recovery endpoint or live-sales approval. See
 [ADR-0025](docs/decisions/0025-alipay-signed-return-reconciliation.md).
 
+An opt-in [operator observer](examples/README.md#original-alipay-notification-diagnosis) encrypts original callback requests and records allowlisted digest/status metadata for native-delivery diagnosis; it never substitutes capture for signature/query/journal authentication.
+
 ## Current status
 
 Implemented now:

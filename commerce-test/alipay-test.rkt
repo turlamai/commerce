@@ -16,7 +16,8 @@
          racket/list
          racket/string
          racket/tcp
-         (prefix-in http: net/http-easy))
+         (prefix-in http: net/http-easy)
+         "../examples/alipay-notify-observer.rkt")
 
 ;; Generate fixture key material during the test, never commit a private key
 ;; or accept a string that has not actually passed RSA2 verification.
@@ -392,6 +393,34 @@
            (check-equal? (http:response-status-code
                          (http:get url #:max-attempts 1 #:max-redirects 0)) 405))
          stop)
+        (define capture-dir (build-path temp-dir "private-capture"))
+        (make-directory capture-dir)
+        (unless (eq? (system-type) 'windows) (file-or-directory-permissions capture-dir #o700))
+        (define observer (make-alipay-notify-observer capture-dir (crypto-random-bytes 32)))
+        (define observed-reservation (tcp-listen 0 4 #t "127.0.0.1"))
+        (define-values (_observed-host observed-port _observed-remote _observed-remote-port)
+          (tcp-addresses observed-reservation #t))
+        (tcp-close observed-reservation)
+        (define stop-observer (serve-observed-alipay-notify observer endpoint #:port observed-port))
+        (define observed-url (format "http://127.0.0.1:~a/webhooks/alipay" observed-port))
+        (dynamic-wind void
+         (lambda ()
+          (let wait ([remaining 100])
+           (unless (with-handlers ([exn:fail? (lambda (_) #f)])
+                    (http:get observed-url #:max-attempts 1 #:max-redirects 0
+                      #:timeouts (http:make-timeout-config #:connect 0.1 #:request 0.2)))
+            (when (zero? remaining) (error 'observer "loopback startup timed out"))
+            (sleep 0.02) (wait (sub1 remaining))))
+          (define observed (http:post observed-url #:headers (hash 'content-type "application/x-www-form-urlencoded")
+                            #:data payload #:max-attempts 1 #:max-redirects 0))
+          (check-equal? (http:response-status-code observed) 200)
+          (check-equal? (http:response-body observed) #"success")
+          (check-equal? (length (storage-order-journal storage "alipay" "order_test_001")) 1)
+          (define received (call-with-input-file (build-path capture-dir "events.jsonl") read-json))
+          (check-equal? (read-notify-capture observer (hash-ref received 'id)) payload)
+          (for ([file (in-list (directory-list capture-dir #:build? #t))])
+            (check-false (regexp-match? #rx#"notify_test_001" (file->bytes file)))))
+         stop-observer)
         (define offline
           (make-alipay-webhook-endpoint
            #:app-id "2026000000000000"

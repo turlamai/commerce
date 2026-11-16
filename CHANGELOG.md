@@ -14,6 +14,11 @@ All notable changes to Commerce are documented here. The format is based on
 
 ### Added
 
+- Add an opt-in operator notification observer example with a bounded private
+  AES-GCM capture spool and allowlisted receipt/status metadata. Native handler
+  authentication and durable acknowledgement remain unchanged; encrypted
+  capture alone grants no rights and invokes no compensation path.
+
 - Add explicit lost-notification reconciliation from a signed Alipay page
   return and independently signed successful order query. The issuer repeats
   both signature checks against trusted merchant identity and durable checkout

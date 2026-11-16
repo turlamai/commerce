@@ -17,3 +17,26 @@ executes `first-purchase.rkt` on every change.
 None of these examples carries real channel credentials, Permit signing keys,
 or demo paid offers. For live provider work, follow
 [docs/runbook.md](../docs/runbook.md) and the deployment guide.
+
+## Original Alipay notification diagnosis
+
+`alipay-notify-observer.rkt` exports an opt-in operator wrapper around the normal
+Alipay webhook handler. Provision a private directory and a distinct 32-byte
+capture key; `make-alipay-notify-observer` refuses group/world directory access
+on Unix. `serve-observed-alipay-notify` binds loopback and accepts only the
+normal `/webhooks/alipay` route. Put it behind a stable, valid HTTPS ingress;
+keep that ingress available until native notification delivery is verified.
+A temporary tunnel whose address changes or disappears cannot preserve a
+provider's pending retry target.
+
+The observer writes exact request bytes only as AES-256-GCM ciphertext with a
+fresh nonce. Allowlisted receipt/result metadata contains body length/digest,
+content-type class, status and acknowledgement class, never raw fields,
+headers, addresses or underlying error strings. The default capture limits are
+256 records and 65536 bytes per request. Capture errors return 503. Operators
+must monitor the limit and remove private captures under their documented
+retention policy after diagnosis. `read-notify-capture` is an offline operator
+helper, not an HTTP endpoint; keep its key separate from provider and Permit
+keys. Capture is never payment proof: only the unchanged signature, binding,
+independent order query and durable journal handler can return `success`.
+This diagnostic does not call the signed-return compensation path.
