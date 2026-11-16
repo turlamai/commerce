@@ -209,3 +209,15 @@ methods return 405 and unsupported content types return 415. Reaching this
 route is not payment proof: signature, immutable checkout binding and an
 independently signed order query must pass before durable acknowledgement.
 The loopback HTTP regression covers these gates and exact callback retries.
+
+### Explicit lost-notification recovery
+
+`commerce/alipay/reconcile` is an explicit server-side candidate for the case
+where payment succeeded but the notification is unavailable. It requires the
+original provider-signed page-return form plus an independently fetched and
+signed successful trade query, exact merchant/order/trade/amount agreement,
+and the immutable checkout subject and Offer. The signed query's
+`send_pay_date` supplies the payment time. The issuer configures trusted app
+and seller ids and re-verifies both exact journaled proofs. A redirect alone,
+a query alone, or a manually changed paid flag is insufficient. No public
+recovery endpoint is added. See [ADR-0025](decisions/0025-alipay-signed-return-reconciliation.md).

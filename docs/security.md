@@ -135,3 +135,16 @@ system provides.
 - staging and production key-rotation drills;
 - operator runbooks exercised without direct database editing.
 
+
+## Signed return reconciliation
+
+ADR-0025 admits an explicit Alipay recovery source only when the original
+provider-signed page return and independently signed successful order query
+agree with durable checkout state. The raw return alone grants no rights. The
+issuer requires its own trusted `#:alipay-app-id` and `#:alipay-seller-id` along
+with the provider public key and catalog, re-verifies BOTH raw proofs and the
+signed query payment time, and compares the complete canonical event. Proof
+inputs cannot choose the expected merchant. Missing query evidence, forged
+return/query, wrong merchant/account/amount/time or changed event data refuse
+before signing. Store original raw proofs privately; ordinary logs must never
+contain the returned query string or query body.

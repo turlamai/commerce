@@ -1,0 +1,90 @@
+#lang racket/base
+
+;; Explicit recovery using TWO provider-signed proofs. Never a redirect-only
+;; grant or a query-only shortcut; see ADR-0025. This module moves no money.
+(provide verify-alipay-return-query reconcile-alipay-signed-return!)
+(require base64 crypto crypto/libcrypto crypto/pem json
+         racket/port racket/string "../alipay.rkt" "../journal.rkt"
+         "../storage.rkt" "../provider.rkt" "../private/model.rkt"
+         "../private/alipay-time.rkt"
+         (only-in "../private/journal-model.rkt" journal-record-evidence))
+(define (refuse [code 'alipay-reconcile-invalid])
+ (raise (exn:fail:commerce "Alipay signed reconciliation refused"
+                         (current-continuation-marks) code (hash))))
+(define (required fields name)
+ (define p (assoc name fields))
+ (unless (and p (string? (cdr p)) (positive? (string-length (cdr p)))) (refuse))
+ (cdr p))
+(define (checked-bytes raw)
+ (unless (and (bytes? raw) (<= 1 (bytes-length raw) 65536)) (refuse))
+ (bytes->immutable-bytes raw))
+(define (signed-return raw pem binding)
+ (define fields (parse-alipay-form (checked-bytes raw)))
+ (unless (and (equal? (required fields "method") "alipay.trade.page.pay.return")
+              (equal? (required fields "version") "1.0")
+              (equal? (required fields "sign_type") "RSA2")
+              (member (required fields "charset") '("utf-8" "UTF-8" "GBK" "gbk"))) (refuse))
+ ;; Current GBK returns contain only ASCII protocol fields. Refuse ambiguous
+ ;; non-ASCII encodings rather than silently re-encoding signed text.
+ (when (member (required fields "charset") '("GBK" "gbk"))
+  (unless (for/and ([p (in-list fields)])
+            (for/and ([ch (in-string (cdr p))]) (< (char->integer ch) 128))) (refuse)))
+ (define entry (call-with-input-string pem (lambda (in) (read-pem in #:only (list #"PUBLIC KEY")))))
+ (unless entry (refuse))
+ (define key (datum->pk-key (cdr entry) 'SubjectPublicKeyInfo (list libcrypto-factory)))
+ (unless (digest/verify key 'sha256 (string->bytes/utf-8 (alipay-signing-content fields))
+           (base64-decode (string->bytes/utf-8 (required fields "sign"))) #:pad 'pkcs1-v1.5)
+  (refuse 'alipay-signature-invalid))
+ (unless (and (equal? (required fields "app_id") (alipay-binding-app-id binding))
+              (equal? (required fields "seller_id") (alipay-binding-seller-id binding))
+              (or (not (assoc "auth_app_id" fields)) (equal? (required fields "auth_app_id") (alipay-binding-app-id binding)))
+              (equal? (required fields "out_trade_no") (alipay-binding-order-id binding))
+              (= (alipay-cny->fen (required fields "total_amount")) (money-minor-units (alipay-binding-amount binding))))
+  (refuse 'alipay-order-mismatch))
+ fields)
+(define (verify-alipay-return-query raw-return raw-query pem binding)
+ (with-handlers ([exn:fail:commerce? raise] [exn:fail? (lambda (_) (refuse))])
+  (unless (alipay-binding? binding) (refuse))
+  (define raw (checked-bytes raw-return))
+  (define fields (signed-return raw pem binding))
+  (define q (checked-bytes raw-query))
+  (define confirmed (verify-alipay-trade-query-response q pem binding))
+  (unless (and (equal? (alipay-confirmed-order-status confirmed) "TRADE_SUCCESS")
+               (equal? (required fields "trade_no") (alipay-confirmed-order-trade-id confirmed)))
+   (refuse 'alipay-order-mismatch))
+  (define decoded (verify-alipay-signed-api-response q pem "alipay_trade_query_response"))
+  (define paid-at (gmt8-wall-time->epoch (hash-ref decoded 'send_pay_date #f)))
+  (make-verified-payment-event "alipay" (string-append "return-query:" (alipay-confirmed-order-trade-id confirmed))
+    (bytes->hex-string (sha256-bytes raw)) 'payment-succeeded
+    (alipay-binding-order-id binding) (alipay-binding-offer-id binding) (alipay-binding-subject-id binding)
+    (alipay-binding-amount binding) paid-at)))
+(define (fingerprint e)
+ (list (payment-event-provider e) (payment-event-event-id e) (payment-event-kind e)
+       (payment-event-order-id e) (payment-event-offer-id e) (payment-event-subject-id e)
+       (payment-event-amount e) (payment-event-occurred-at e)))
+(define (reconcile-alipay-signed-return! storage raw-return pem binding #:fetch-query fetch
+                                         #:received-at [now (current-seconds)])
+ (with-handlers ([exn:fail:commerce? raise] [exn:fail? (lambda (_) (refuse))])
+  (define raw (checked-bytes raw-return))
+  (unless (and (commerce-storage? storage) (alipay-binding? binding) (procedure? fetch)
+               (exact-nonnegative-integer? now)) (refuse))
+  (define stored (storage-checkout-binding-ref storage (alipay-binding-order-id binding)))
+  (unless (and stored (equal? (checkout-binding-provider stored) "alipay")
+    (equal? (checkout-binding-merchant-external-id stored) (alipay-binding-order-id binding))
+    (equal? (checkout-binding-offer-id stored) (alipay-binding-offer-id binding))
+    (equal? (checkout-binding-subject-id stored) (alipay-binding-subject-id binding))
+    (equal? (checkout-binding-currency stored) "CNY") (= (checkout-binding-currency-exponent stored) 2)
+    (= (checkout-binding-amount-minor-units stored) (money-minor-units (alipay-binding-amount binding))))
+   (refuse 'alipay-order-mismatch))
+  ;; Authenticate browser-carried bytes BEFORE any provider read.
+  (signed-return raw pem binding)
+  (define q (checked-bytes (fetch binding)))
+  (define event (verify-alipay-return-query raw q pem binding))
+  (define existing (journal-ref storage "alipay" (payment-event-event-id event)))
+  (cond
+   [existing
+    (define original (verify-alipay-return-query (journal-record-payload existing) (journal-record-evidence existing) pem binding))
+    (unless (and (equal? original (journal-record-event existing))
+                 (equal? (fingerprint original) (fingerprint event))) (refuse 'event-conflict))
+    (journal-accept! storage (journal-record-payload existing) original #:received-at now #:evidence (journal-record-evidence existing))]
+   [else (journal-accept! storage raw event #:received-at now #:evidence q)])))

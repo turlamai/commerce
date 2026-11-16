@@ -231,6 +231,13 @@ query client, strict callback parser and durable journal-based callback
 listener. **Its CI and merchant admission are still pending**, and it must
 not be represented as production-ready. It uses Racket, not Node/npm.
 
+The explicit `commerce/alipay/reconcile` candidate can recover a lost
+notification only with the original RSA2-signed page return plus an independently
+signed successful trade query. Its issuer pins the merchant/app identity and
+re-verifies both proofs. A redirect or query alone grants nothing; this supplies
+no public recovery endpoint or live-sales approval. See
+[ADR-0025](docs/decisions/0025-alipay-signed-return-reconciliation.md).
+
 ## Current status
 
 Implemented now:

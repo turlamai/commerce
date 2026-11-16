@@ -20,7 +20,9 @@
                      commerce/backup
                      commerce/retention
                      commerce/purchase-progress
-                     commerce/checkout-http))
+                     commerce/checkout-http
+                     commerce/alipay
+                     commerce/alipay/reconcile))
 
 @title[#:tag "commerce"]{Commerce: Provider-Neutral Commerce Orchestration}
 @author{TuringLambdaAI}
@@ -838,12 +840,16 @@ again — independently of the webhook edge that accepted it.
 @defproc[(make-issuance-evidence-verifier
           [#:catalog catalog permit-policy-catalog?]
           [#:alipay-public-key-pem alipay-public-key-pem (or/c string? #f) #f]
+          [#:alipay-app-id alipay-app-id (or/c string? #f) #f]
+          [#:alipay-seller-id alipay-seller-id (or/c string? #f) #f]
           [#:pancake-keyring pancake-keyring pancake-webhook-keyring?
            (default-pancake-webhook-keyring)]
           [#:binding-lookup binding-lookup (or/c procedure? #f) #f])
          issuance-evidence-verifier?]{
 Binds the pinned catalog and the channel verification material behind one
-opaque verifier.}
+opaque verifier. Signed-return reconciliation additionally requires both trusted
+Alipay app and seller identifiers; missing merchant identity refuses that
+evidence source before signing. Existing notification/refund paths are unchanged.}
 
 @defproc[(issuance-evidence-verifier? [value any/c]) boolean?]{
 Recognizes one opaque evidence verifier.}
@@ -1191,6 +1197,36 @@ description and @filepath{deploy/README.md} the deployment assembly.
 (define-values (state intents)
   (ingest-payment-event (empty-commerce-state) paid))
 }
+
+@section{Alipay lost-notification reconciliation}
+
+@defmodule[commerce/alipay/reconcile]
+
+This explicit server-side candidate moves no money. ADR-0025 requires two
+independent provider signatures; a redirect alone never authorizes use.
+
+@defproc[(verify-alipay-return-query [raw-return bytes?] [raw-query bytes?]
+          [public-key-pem string?] [binding alipay-binding?]) payment-event?]{
+Authenticates the original page-return form and signed trade query, checks
+merchant, order, trade and exact amount, and requires @tt{TRADE_SUCCESS}.
+Derives the payment time only from the query's signed @tt{send_pay_date}.
+Each input is bounded to 65536 bytes. GBK returns are limited to ASCII fields;
+ambiguous non-ASCII GBK inputs fail closed. Does not write storage or sign rights.}
+
+@defproc[(reconcile-alipay-signed-return! [storage commerce-storage?]
+          [raw-return bytes?] [public-key-pem string?] [binding alipay-binding?]
+          [#:fetch-query fetch-query procedure?]
+          [#:received-at received-at exact-nonnegative-integer? (current-seconds)])
+         journal-acceptance?]{
+Requires an existing immutable checkout binding and authenticates the original
+return before calling @racket[fetch-query] with the binding. That procedure must
+independently read the official order, for example through the configured
+Alipay query client. Journal acceptance preserves exact return and query bytes.
+Retries re-authenticate original evidence and reuse the original record only
+when all canonical facts agree. Projection and issuance remain asynchronous;
+the issuer must configure its own trusted merchant identifiers and re-verify
+both signatures. The product owns authenticated invocation and capture of the
+original signed return; no public endpoint or query-only grant is supplied.}
 
 @section{Further reading}
 
