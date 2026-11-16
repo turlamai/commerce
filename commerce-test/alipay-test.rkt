@@ -395,7 +395,7 @@
          stop)
         (define capture-dir (build-path temp-dir "private-capture"))
         (make-directory capture-dir)
-        (file-or-directory-permissions capture-dir #o700)
+        (unless (eq? (system-type) 'windows) (file-or-directory-permissions capture-dir #o700))
         (define observer (make-alipay-notify-observer capture-dir (crypto-random-bytes 32)))
         (define observed-reservation (tcp-listen 0 4 #t "127.0.0.1"))
         (define-values (_observed-host observed-port _observed-remote _observed-remote-port)

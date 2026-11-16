@@ -6,7 +6,7 @@
 (define (leaked? bytes) (regexp-match? (byte-regexp (regexp-quote marker)) bytes))
 (test-case "encrypted request capture and metadata are lossless and redact raw input"
  (define dir (make-temporary-file "alipay-observer-~a" 'directory))
- (file-or-directory-permissions dir #o700)
+ (unless (eq? (system-type) 'windows) (file-or-directory-permissions dir #o700))
  (dynamic-wind void (lambda ()
   (define key (crypto-random-bytes 32))
   (define o (make-alipay-notify-observer dir key #:max-records 2))
@@ -28,9 +28,9 @@
   (lambda () (delete-directory/files dir))))
 (test-case "observation never authenticates or accepts a malformed payment"
  (define dir (make-temporary-file "alipay-observer-http-~a" 'directory))
- (file-or-directory-permissions dir #o700)
+ (unless (eq? (system-type) 'windows) (file-or-directory-permissions dir #o700))
  (dynamic-wind void (lambda ()
-  (define spool (build-path dir "capture")) (make-directory spool) (file-or-directory-permissions spool #o700)
+  (define spool (build-path dir "capture")) (make-directory spool) (unless (eq? (system-type) 'windows) (file-or-directory-permissions spool #o700))
   (define o (make-alipay-notify-observer spool (crypto-random-bytes 32) #:max-body-bytes 64))
   (define storage (open-sqlite-commerce-storage (build-path dir "ledger.sqlite")))
   (dynamic-wind void (lambda ()
