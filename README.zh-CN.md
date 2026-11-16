@@ -214,6 +214,8 @@ Racket 服务端签名下单、主动查单验签、严格异步通知及 SQLite
 重新验证两份证明；单独回跳或查单不能授权。本模块不提供公开恢复入口，
 不代表正式开卖获批。见 [ADR-0025](docs/decisions/0025-alipay-signed-return-reconciliation.md)。
 
+可选的[运营回调观察器](examples/README.md#original-alipay-notification-diagnosis)加密保留原始回调，只记录摘要与处理状态，用于排查原生投递；捕获本身不能代替验签、独立查单和持久入账。
+
 ## 当前状态
 
 已经实现：

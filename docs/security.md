@@ -148,3 +148,18 @@ inputs cannot choose the expected merchant. Missing query evidence, forged
 return/query, wrong merchant/account/amount/time or changed event data refuse
 before signing. Store original raw proofs privately; ordinary logs must never
 contain the returned query string or query body.
+
+## Opt-in notification diagnosis
+
+The operator observer example preserves bounded original notification bytes in
+an AES-256-GCM encrypted private spool before invoking the existing Alipay
+handler. Capture is not authentication or payment acceptance. Only the native
+signature, immutable binding, signed active query and journal decision may
+produce the provider acknowledgement. Ordinary observer metadata is limited
+to correlation id, receipt time, body length/digest, content-type class and
+status/acknowledgement class; raw parameters, headers, addresses, signatures
+and errors are not logged. Provision a distinct capture key and private
+spool, monitor its explicit record limit, and remove captures when the case is
+closed under the operator's retention policy. Capture/storage failure returns
+503 rather than pretending the notification was processed. No public decrypt
+or diagnostics endpoint is supplied.
