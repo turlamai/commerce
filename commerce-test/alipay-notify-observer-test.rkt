@@ -12,7 +12,7 @@
   (define o (make-alipay-notify-observer dir key #:max-records 2))
   (define id (capture-notify! o marker "application/x-www-form-urlencoded; secret=PRIVATE_CALLBACK_MARKER_78231"))
   (define red-path (build-path dir "unsafe-control.log"))
-  (call-with-output-file red-path #:permissions #o600 (lambda (out) (write-bytes marker out)))
+  (call-with-output-file red-path #:permissions (if (eq? (system-type) 'windows) #o666 #o600) (lambda (out) (write-bytes marker out)))
   (check-true (leaked? (file->bytes red-path)) "red control must detect unsafe artifact")
   (delete-file red-path)
   (define second (capture-notify! o marker "application/x-www-form-urlencoded"))

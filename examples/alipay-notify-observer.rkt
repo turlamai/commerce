@@ -21,12 +21,14 @@
 (define (capture-path o id)
   (unless (and (string? id) (regexp-match? #px"^[0-9]+-[a-f0-9]{16}$" id)) (refuse))
   (build-path (observer-directory o) (string-append id ".capture.json")))
+;; Windows privacy relies on the operator-provisioned directory ACL.
+(define private-file-mode (if (eq? (system-type) 'windows) #o666 #o600))
 (define (private-write path data)
-  (call-with-output-file path #:exists 'error #:permissions #o600
+  (call-with-output-file path #:exists 'error #:permissions private-file-mode
     (lambda (out) (write-json data out))))
 (define (audit! o data)
   (call-with-output-file (build-path (observer-directory o) "events.jsonl")
-    #:exists 'append #:permissions #o600
+    #:exists 'append #:permissions private-file-mode
     (lambda (out) (write-json data out) (newline out))))
 (define (b64 b) (bytes->string/utf-8 (base64-encode b #:line #f)))
 (define (un64 s) (base64-decode (string->bytes/utf-8 s)))
