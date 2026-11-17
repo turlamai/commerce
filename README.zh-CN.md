@@ -30,6 +30,11 @@ Pancake、ZPAY、应用商店与未来渠道负责资金流转；Permit 负责�
 
 [使用选择、成熟度、升级与支持](docs/USING.zh-CN.md) · [English](docs/USING.md)
 
+首次一次性付款的 Permit 签发可选择 `#:use-duration-months`：从已认证付款时间
+按 UTC 日历月计算到期时间，短月份取有效末日。这只是策略基础能力，不代表
+连续订阅、后续购买或跨订单退款隔离已经实现，也不代表可以开售。
+详见 [Permit 集成边界](docs/permit-integration.md#prepaid-calendar-month-initial-grants)。
+
 ## 快速开始
 
 当前版本已经包含纯事件核心、重放冲突防护、订单投影、权益意图、渠道边界、

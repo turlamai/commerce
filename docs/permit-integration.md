@@ -118,3 +118,18 @@ Permit credential-signing keys are distinct from:
 Production signing belongs behind an explicit issuer adapter and secret store.
 The default Commerce facade never imports `permit/issuer`.
 
+
+## Prepaid calendar-month initial grants
+
+An opt-in constraints policy `#:use-duration-months` derives an initial grant's
+`use_expires_at` from the order's authenticated `paid-at`, adding UTC calendar
+months, clamping to the destination month's last day and preserving time of day.
+A delayed issuer does not start a new service period. Fixed `#:use-expires-at`
+and this duration are mutually exclusive. Missing paid evidence refuses with
+`order-paid-evidence-required`; out-of-range dates refuse before signing.
+The duration is Commerce policy metadata, never a new Permit protocol field.
+
+This narrow policy does not admit repeat one-time purchases into an existing
+lineage, allocate paid periods, isolate refunds across orders, or enable
+checkout. Existing lineage rejection and successor rules remain in force.
+Products must pass those separate gates before selling prepaid hosted service.

@@ -21,7 +21,10 @@
                   ;; Commerce-side policy meaning, never a Permit payload
                   ;; field: when set, issuance derives the concrete
                   ;; updates_through from the order's paid evidence.
-                  updates-through-duration-days)
+                  updates-through-duration-days
+                  ;; Initial hosted use window from authenticated paid-at,
+                  ;; expressed as UTC calendar months rather than fixed days.
+                  use-duration-months)
   #:transparent)
 
 (struct permit-entitlement-policy

@@ -13,6 +13,7 @@
  permit-constraints-policy?
  make-permit-constraints-policy
  permit-constraints-policy-use-expires-at
+ permit-constraints-policy-use-duration-months
  permit-constraints-policy-updates-through
  permit-constraints-policy-updates-through-duration-days
  permit-constraints-policy-features-through
@@ -176,6 +177,7 @@
 
 (define (make-permit-constraints-policy
          #:use-expires-at [use-expires-at #f]
+         #:use-duration-months [use-duration-months #f]
          #:updates-through [updates-through #f]
          #:updates-through-duration-days [updates-through-duration-days #f]
          #:features-through [features-through #f]
@@ -186,6 +188,15 @@
          #:concurrent-seats [concurrent-seats #f]
          #:installation-id [installation-id #f]
          #:activation-required? [activation-required? #f])
+  (unless (or (not use-duration-months)
+              (exact-positive-integer? use-duration-months))
+    (raise-argument-error 'make-permit-constraints-policy
+                          "(or/c #f exact-positive-integer?) use-duration-months"
+                          use-duration-months))
+  (when (and use-expires-at use-duration-months)
+    (raise-argument-error 'make-permit-constraints-policy
+                          "#:use-expires-at and #:use-duration-months are mutually exclusive"
+                          use-expires-at))
   (unless (or (not updates-through-duration-days)
               (exact-positive-integer? updates-through-duration-days))
     (raise-argument-error
@@ -214,7 +225,7 @@
         named-seats device-activations concurrent-seats
         (immutable-if-string installation-id)
         activation-required?
-        updates-through-duration-days))
+        updates-through-duration-days use-duration-months))
      (validate-snapshot-shape
       (subject #:type "person" #:id "commerce-policy-validation-subject")
       (list (grant #:products '("commerce-policy-validation-product")))
@@ -500,6 +511,30 @@
                          (epoch-seconds->rfc3339
                           (+ paid-at (* duration 86400)))))]))
 
+(define (apply-use-duration policy snapshot paid-at intent)
+  (define months
+    (permit-constraints-policy-use-duration-months
+     (permit-entitlement-policy-constraints policy)))
+  (cond
+    [(not months) snapshot]
+    [(not paid-at)
+     (raise-commerce 'order-paid-evidence-required
+                     "calendar use duration requires authenticated paid-at"
+                     (hash 'policy-id (permit-entitlement-policy-id policy)
+                           'source-idempotency-key
+                           (rights-intent-idempotency-key intent)))]
+    [else
+     (define expires
+       (with-handlers ([exn:fail?
+                        (lambda (_failure)
+                          (raise-commerce 'invalid-entitlement-request
+                                          "calendar use duration exceeds supported timestamp range"
+                                          (hash 'policy-id
+                                                (permit-entitlement-policy-id policy))))])
+         (epoch-seconds+calendar-months->rfc3339 paid-at months)))
+     (hash-set snapshot 'constraints
+               (hash-set (hash-ref snapshot 'constraints) 'use_expires_at expires))]))
+
 (define (prepare-permit-snapshot
          catalog intent
          #:issuer issuer
@@ -537,8 +572,10 @@
           (hash 'policy-id (permit-entitlement-policy-id policy)
                 'source-idempotency-key
                 (rights-intent-idempotency-key intent))))
-       (or (apply-updates-through-duration! policy initial paid-at intent)
-           initial)]
+       (apply-use-duration
+        policy
+        (or (apply-updates-through-duration! policy initial paid-at intent) initial)
+        paid-at intent)]
       ['withdraw
        (unless previous
          (raise-commerce
