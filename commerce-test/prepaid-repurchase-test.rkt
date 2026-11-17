@@ -120,9 +120,10 @@
     (check-eq? (issuance-result-error-code result) 'prepaid-snapshot-stale)
     (check-false (storage-lineage-ref db #:issuer "test-issuer" #:subject-type "account"
                   #:subject-id "account-a" #:offer-id "hosted-monthly"))
-    (storage-redrive-issuance-work! db "mock/race/grant" #:now 1775044801)
-    (check-eq? (issuance-result-disposition (work! db 1775044801)) 'completed)
-    (check-equal? (hash-ref (proof db #:at "2026-04-01T12:00:02Z") 'status) "not-usable")
+    (check-equal? (issuance-outbox-item-available-at
+                    (storage-outbox-ref db "mock/race/grant")) 1775044830)
+    (check-eq? (issuance-result-disposition (work! db 1775044831)) 'completed)
+    (check-equal? (hash-ref (proof db #:at "2026-04-01T12:01:00Z") 'status) "not-usable")
     (storage-close db))))
 
 (test-case "prepaid checkpoint is append-only and v8 migration preserves journal bytes"
@@ -156,4 +157,27 @@
     (define result (work! store))
     (check-eq? (issuance-result-disposition result) 'released)
     (check-eq? (issuance-result-error-code result) 'prepaid-evidence-conflict)
+    (storage-close store))))
+
+(test-case "concurrent scoped issuers retry a stale revision without losing paid time"
+  (with-db (lambda (path)
+    (define store (open-sqlite-commerce-storage path))
+    (accept! store "concurrent-a" "a" 'payment-succeeded 1774951237)
+    (accept! store "concurrent-b" "b" 'payment-succeeded 1775001600)
+    (define calls 0)
+    (define outer
+      (process-issuance-work!
+       (make-issuance-worker #:catalog catalog #:issuer "test-issuer"
+         #:private-key private #:key-id "test" #:trust-store trust
+         #:clock (lambda ()
+           (set! calls (add1 calls))
+           (when (= calls 2)
+             (check-eq? (issuance-result-disposition (work! store)) 'completed))
+           (values 1775044800 "2026-04-01T12:00:00Z"))) store))
+    (check-eq? (issuance-result-disposition outer) 'released)
+    (check-eq? (issuance-result-error-code outer) 'prepaid-snapshot-stale)
+    (check-equal? (issuance-outbox-item-available-at
+                  (storage-outbox-ref store "mock/a/grant")) 1775044830)
+    (assert-expiry (work! store 1775044831) "2026-05-01T00:00:00Z")
+    (check-equal? (hash-ref (proof store) 'revision) 1)
     (storage-close store))))

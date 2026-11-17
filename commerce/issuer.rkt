@@ -297,8 +297,9 @@ supply the ADR-0020 evidence verifier"
                                   #:error-code code
                                   #:retry-at
                                   (+ now
-                                     (issuance-worker-operator-backoff-seconds
-                                      worker)))
+                                     (if (eq? code 'prepaid-snapshot-stale)
+                                         (issuance-worker-transient-backoff-seconds worker)
+                                         (issuance-worker-operator-backoff-seconds worker))))
   (released-result code))
 
 (define (drive-issuance! worker storage item intent issuer subject-type

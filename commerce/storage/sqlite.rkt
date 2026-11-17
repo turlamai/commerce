@@ -3,6 +3,7 @@
 (provide open-sqlite-commerce-storage)
 
 (require db
+         json
          file/sha1
          racket/list
          racket/match
@@ -1302,6 +1303,17 @@ SQL
                 (hash 'idempotency-key key
                       'offer-id offer-id
                       'subject-id subject-id))]))
+          (when prepaid-records
+            (define proposed-revision
+              (with-handlers ([exn:fail? (lambda (_) #f)])
+                (define payload (bytes->jsexpr immutable-payload))
+                (and (hash? payload) (hash-ref payload 'revision #f))))
+            (unless (exact-nonnegative-integer? proposed-revision)
+              (raise-commerce 'invalid-issuance-record
+                              "prepaid snapshot has no valid revision" (hash)))
+            (unless (= proposed-revision next-revision)
+              (raise-commerce 'prepaid-snapshot-stale
+                              "prepaid lineage advanced during signing" (hash))))
           (when (= (query-value
                     connection
                     "SELECT EXISTS(SELECT 1 FROM commerce_entitlement_revision

@@ -40,3 +40,9 @@ protocol retains its inclusive final-instant semantics for other products.
 Full-refund duplicate deliveries for an already reconciled order do not reopen
 a pending state. Signature checks for initial prepaid Alipay grants bind the
 signed gmt_payment and merchant identity to the stored canonical evidence.
+
+A changed scoped journal or concurrently advanced lineage is a transient retry
+(default 30 seconds), not an hour-long operator backoff. The completion
+transaction compares the proposed signed revision with the next durable revision
+as well as the scoped records. No operator redrive is needed for these normal
+concurrency races.

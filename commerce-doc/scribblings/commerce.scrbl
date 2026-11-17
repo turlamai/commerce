@@ -866,9 +866,13 @@ Recognizes one opaque evidence verifier.}
           [verifier issuance-evidence-verifier?]
           [record journal-record?]
           [claimed-offer-id string?]
-          [claimed-subject-id string?])
-         void?]{
+          [claimed-subject-id string?]
+          [#:require-paid-time? require-paid-time? boolean? #f])
+         symbol?]{
 Re-verifies the journaled evidence for one claimed Offer and subject.
+Returns @racket['verified]. Calendar issuers pass @racket[#t] for
+@racket[#:require-paid-time?], binding the signed Alipay payment timestamp and
+merchant identity; providers without equivalent paid-time verification refuse.
 Mismatched fields, forged bytes, and failed channel re-verification raise
 typed @racket[exn:fail:commerce] refusals before any signing happens.}
 
