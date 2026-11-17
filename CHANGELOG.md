@@ -14,6 +14,11 @@ All notable changes to Commerce are documented here. The format is based on
 
 ### Added
 
+- Add an opt-in initial-grant `#:use-duration-months` policy derived from
+  authenticated paid-at in UTC, with calendar-month clamping, exact payload
+  checks and durable issuer restart/replay coverage. This does not enable
+  checkout or implement repeat-purchase and cross-order refund isolation.
+
 - Add an opt-in operator notification observer example with a bounded private
   AES-GCM capture spool and allowlisted receipt/status metadata. Native handler
   authentication and durable acknowledgement remain unchanged; encrypted

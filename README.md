@@ -32,6 +32,12 @@ Use Commerce only when a product needs durable payment-to-rights orchestration. 
 
 [Fit, maturity, upgrades and support](docs/USING.md) · [简体中文](docs/USING.zh-CN.md)
 
+Initial one-time Permit grants can opt into `#:use-duration-months`: expiry is
+anchored to authenticated payment time using UTC calendar months, including
+short-month clamping. This is a policy primitive, not a sellable recurring
+subscription or proof of repeat-purchase/refund isolation. See the
+[Permit integration boundary](docs/permit-integration.md#prepaid-calendar-month-initial-grants).
+
 ## Quick start
 
 The current implementation provides the pure event core, replay/conflict protection,

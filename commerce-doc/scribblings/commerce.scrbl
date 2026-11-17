@@ -643,6 +643,7 @@ entitlement schema.}
 
 @defproc[(make-permit-constraints-policy
           [#:use-expires-at use-expires-at (or/c string? #f) #f]
+          [#:use-duration-months use-duration-months (or/c exact-positive-integer? #f) #f]
           [#:updates-through updates-through (or/c string? #f) #f]
           [#:features-through features-through (or/c string? #f) #f]
           [#:version-min version-min (or/c string? #f) #f]
@@ -654,7 +655,12 @@ entitlement schema.}
           [#:activation-required? activation-required? boolean? #f])
          permit-constraints-policy?]{
 Constructs the complete constraints policy and validates timestamps, SemVer
-bounds, limits, installation binding, and activation shape through Permit.}
+bounds, limits, installation binding, and activation shape through Permit.
+@racket[#:use-duration-months] opts initial grants into UTC calendar-month
+expiry derived from authenticated @racket[#:paid-at]; it is mutually exclusive
+with fixed @racket[#:use-expires-at]. Short destination months clamp the day
+while preserving time of day. Missing payment evidence refuses; this does not
+implement repeat-purchase period allocation or cross-order refund isolation.}
 
 @defproc[(make-permit-entitlement-policy
           [id string?]
@@ -684,8 +690,10 @@ policy.}
           [#:issuer issuer string?]
           [#:credential-id credential-id string?]
           [#:entitlement-id entitlement-id string?]
-          [#:issued-at issued-at exact-nonnegative-integer?]
-          [#:previous previous (or/c entitlement-revision? #f) #f])
+          [#:issued-at issued-at string?]
+          [#:previous previous (or/c hash? #f) #f]
+          [#:use-expires-at use-expires-at (or/c string? #f) #f]
+          [#:paid-at paid-at (or/c exact-positive-integer? #f) #f])
          permit-snapshot-request?]{
 For @racket['grant], creates a complete entitlement at revision 0 and
 rejects an existing lineage. For @racket['withdraw], requires the previous
