@@ -163,3 +163,15 @@ spool, monitor its explicit record limit, and remove captures when the case is
 closed under the operator's retention policy. Capture/storage failure returns
 503 rather than pretending the notification was processed. No public decrypt
 or diagnostics endpoint is supplied.
+
+
+## Prepaid reconciliation
+
+Calendar-duration issuer work re-authenticates all scoped journal facts,
+including the provider-signed paid time, against its pinned merchant/catalog.
+Order projections cannot select the aggregate expiry. Completion compares the
+complete scoped journal inside its write transaction; changed evidence refuses
+publication. Schema v9 append-only checkpoints record which refunds the issued
+snapshot reflects, including retained grants backed by other orders. Checkpoints
+are not payment evidence and do not remove the shared-writable-database residual
+risk. See ADR-0026.

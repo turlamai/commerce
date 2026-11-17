@@ -783,3 +783,81 @@
                    'alipay-refund-mismatch)
      (check-equal? (database-count path "commerce_entitlement_revision") 1)
      (storage-close storage))))
+
+;; Prepaid periods must authenticate all contributing records, including their
+;; payment instants, rather than trusting only the triggering outbox record.
+(define prepaid-catalog
+  (make-permit-policy-catalog
+   (list pro-offer)
+   (list (make-permit-entitlement-policy
+          "taskly-pro-v1" 1 #:subject-type 'person
+          #:grants (list (make-permit-grant-policy #:products '("taskly") #:edition "pro"))
+          #:constraints (make-permit-constraints-policy #:use-duration-months 1)))))
+
+(define (prepaid-signed-payment storage order id paid-at wall-time)
+  (storage-create-checkout-binding! storage
+    (checkout-binding order "alipay" "PROD_alipay_001" "taskly-pro-lifetime"
+                      "customer-001" "CNY" 2900 2) #:created-at 1)
+  (define fields
+    (cons (cons "notify_id" id)
+          (cons (cons "gmt_payment" wall-time)
+                (filter (lambda (p) (not (equal? (car p) "notify_id")))
+                        (alipay-fields #:out-trade-no order)))))
+  (define raw (form-encode (sign-alipay-fields fields)))
+  (journal-accept! storage raw
+    (make-verified-payment-event "alipay" id (bytes->hex-string (sha256-bytes raw))
+      'payment-succeeded order "taskly-pro-lifetime" "customer-001" (money "CNY" 2900) paid-at)
+    #:received-at 1794873600)
+  (storage-project-next! storage #:processed-at 1794873600))
+
+(define (prepaid-verified-worker storage)
+  (make-issuance-worker #:catalog prepaid-catalog #:issuer issuer-name
+    #:private-key permit-private-key #:key-id key-id #:trust-store trust-store
+    #:clock (lambda () (values 1794873601 "2026-11-17T00:00:01Z"))
+    #:evidence-verifier
+    (make-issuance-evidence-verifier #:catalog prepaid-catalog
+      #:alipay-public-key-pem alipay-public-key-pem
+      #:alipay-app-id "2026000000000000" #:alipay-seller-id "2088000000000000"
+      #:binding-lookup (lambda (order) (storage-checkout-binding-ref storage order)))))
+
+(test-case "prepaid repeated Alipay signed payments retain payment-anchored expiry"
+  (call-with-temporary-database
+    (lambda (path)
+      (define storage (open-sqlite-commerce-storage path))
+      (prepaid-signed-payment storage "paid-oct" "notice-oct" 1792108800 "2026-10-16 08:00:00")
+      (check-eq? (issuance-result-disposition
+                   (process-issuance-work! (prepaid-verified-worker storage) storage)) 'completed)
+      (prepaid-signed-payment storage "paid-nov" "notice-nov" 1794787200 "2026-11-16 08:00:00")
+      (define result (process-issuance-work! (prepaid-verified-worker storage) storage))
+      (check-eq? (issuance-result-disposition result) 'completed)
+      (define payload (bytes->jsexpr (entitlement-revision-payload-bytes
+        (issuance-completion-revision (issuance-result-completion result)))))
+      (check-equal? (hash-ref (hash-ref payload 'constraints) 'use_expires_at)
+                    "2026-12-16T00:00:00Z")
+      (storage-close storage))))
+
+(test-case "prepaid scope refuses non-triggering unauthenticated evidence"
+  (call-with-temporary-database
+    (lambda (path)
+      (define storage (open-sqlite-commerce-storage path))
+      (prepaid-signed-payment storage "paid-valid" "notice-valid" 1794787200 "2026-11-16 08:00:00")
+      (define raw #"synthetic invalid contributing record")
+      (journal-accept! storage raw
+        (make-verified-payment-event "alipay" "notice-invalid" (bytes->hex-string (sha256-bytes raw))
+          'payment-succeeded "other-order" "taskly-pro-lifetime" "customer-001"
+          (money "CNY" 2900) 1794787200) #:received-at 1794873600)
+      (define result (process-issuance-work! (prepaid-verified-worker storage) storage))
+      (check-eq? (issuance-result-disposition result) 'released)
+      (check-equal? (database-count path "commerce_issued_credential") 0)
+      (storage-close storage))))
+
+(test-case "prepaid scope refuses a canonical payment instant differing from signed time"
+  (call-with-temporary-database
+    (lambda (path)
+      (define storage (open-sqlite-commerce-storage path))
+      (prepaid-signed-payment storage "paid-time" "notice-time" 1794873600 "2026-11-16 08:00:00")
+      (define result (process-issuance-work! (prepaid-verified-worker storage) storage))
+      (check-eq? (issuance-result-disposition result) 'released)
+      (check-eq? (issuance-result-error-code result) 'evidence-paid-time-mismatch)
+      (check-equal? (database-count path "commerce_issued_credential") 0)
+      (storage-close storage))))

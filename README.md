@@ -32,10 +32,11 @@ Use Commerce only when a product needs durable payment-to-rights orchestration. 
 
 [Fit, maturity, upgrades and support](docs/USING.md) · [简体中文](docs/USING.zh-CN.md)
 
-Initial one-time Permit grants can opt into `#:use-duration-months`: expiry is
-anchored to authenticated payment time using UTC calendar months, including
-short-month clamping. This is a policy primitive, not a sellable recurring
-subscription or proof of repeat-purchase/refund isolation. See the
+Prepaid one-time Permit grants can opt into `#:use-duration-months`: each
+order's expiry is anchored to authenticated payment time in UTC calendar
+months. The issuer reconciles repeat purchases and full refunds per order,
+with signed evidence re-verification and atomic snapshot coverage. This does
+not enable checkout or establish deployed product acceptance. See the
 [Permit integration boundary](docs/permit-integration.md#prepaid-calendar-month-initial-grants).
 
 ## Quick start
@@ -258,7 +259,7 @@ Implemented now:
 - a provider adapter contract and mock walkthrough;
 - a durable SQLite raw-event journal with digest verification, exact replay,
   conflicting-replay rejection, and database-enforced immutable rows;
-- SQLite schema v8 with versioned migrations from v1-v7, deterministic journal
+- SQLite schema v9 with versioned migrations from v1-v8, deterministic journal
   projection, atomic order plus issuance-outbox writes, and append-only,
   contiguous entitlement-lineage evidence;
 - exact-byte Pancake RSA-SHA256 verification with explicit environment keys,
@@ -304,7 +305,7 @@ Implemented now:
   acknowledge with total status mapping; the portal fulfills one-time
   claims over HTTP (404/409/410 for unknown, reused, and expired
   tokens);
-- operator audit on schema v8 (append-only action/operator/reason
+- operator audit on schema v9 (append-only action/operator/reason
   evidence) and bounded claim reissue for the same credential with
   audited fresh tokens;
 - bounded provider reconciliation: signed order-fact reads compared

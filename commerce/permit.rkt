@@ -572,10 +572,20 @@
           (hash 'policy-id (permit-entitlement-policy-id policy)
                 'source-idempotency-key
                 (rights-intent-idempotency-key intent))))
-       (apply-use-duration
-        policy
-        (or (apply-updates-through-duration! policy initial paid-at intent) initial)
-        paid-at intent)]
+       (define derived
+         (apply-use-duration
+          policy
+          (or (apply-updates-through-duration! policy initial paid-at intent) initial)
+          paid-at intent))
+       ;; The issuer may reconcile multiple independently paid/refunded orders.
+       ;; Only an opt-in calendar policy accepts its complete aggregate expiry.
+       (if (and use-expires-at
+                (permit-constraints-policy-use-duration-months
+                 (permit-entitlement-policy-constraints policy)))
+           (hash-set derived 'constraints
+                     (hash-set (hash-ref derived 'constraints)
+                               'use_expires_at use-expires-at))
+           derived)]
       ['withdraw
        (unless previous
          (raise-commerce

@@ -26,6 +26,7 @@
          "storage.rkt"
          "private/journal-model.rkt"
          "private/model.rkt"
+         "private/prepaid.rkt"
          "private/time.rkt")
 
 ;; The worker owns no durable state of its own. Every decision is derived
@@ -234,8 +235,36 @@ supply the ADR-0020 evidence verifier"
                          (issuance-outbox-item-provider item)
                          (issuance-outbox-item-order-id item)))
     (define paid-through (and order (order-projection-paid-through order)))
+    (define months
+      (permit-constraints-policy-use-duration-months
+       (permit-entitlement-policy-constraints policy)))
     ;; Deterministic refusals stop before any signing work.
     (cond
+      [months
+       ;; Re-authenticate every contributing fact; mutable order projections
+       ;; cannot supply the aggregate rights window to the signer.
+       (define records (storage-scope-journal storage subject-id offer-id))
+       (unless (for/or ([record (in-list records)])
+                 (= (journal-record-sequence record)
+                    (issuance-outbox-item-source-sequence item)))
+         (raise-commerce 'prepaid-evidence-conflict "trigger is outside scoped journal"))
+       (when verifier
+         (for ([record (in-list records)])
+           (verify-issuance-evidence! verifier record offer-id subject-id
+                                      #:require-paid-time? #t)))
+       (define selected (permit-catalog-offer (issuance-worker-catalog worker) offer-id))
+       (define end
+         (prepaid-period-end records months offer-id subject-id (offer-price selected)))
+       (define effective-action (if (or end (not latest)) 'grant 'withdraw))
+       (define snapshot-action
+         (cond [(not latest) 'grant] [end 'renew] [else 'withdraw]))
+       (drive-issuance! worker storage item
+                        (struct-copy rights-intent intent [action snapshot-action])
+                        issuer subject-type entitlement-id latest claim-now
+                        (or end (epoch-seconds->rfc3339 claim-now))
+                        (or (and order (order-projection-paid-at order))
+                            (issuance-outbox-item-occurred-at item))
+                        records effective-action)]
       [(and (eq? action 'grant) lineage (not paid-through))
        (release-deterministic! worker storage item claim-now
                                'entitlement-lineage-conflict)]
@@ -274,7 +303,7 @@ supply the ADR-0020 evidence verifier"
 
 (define (drive-issuance! worker storage item intent issuer subject-type
                          entitlement-id latest claim-now use-expires-at
-                         paid-at)
+                         paid-at [prepaid-records #f] [effective-action #f])
   (define action (rights-intent-action intent))
   (define revision
     (if latest
@@ -358,8 +387,9 @@ supply the ADR-0020 evidence verifier"
                                          #:claim-token claim-token
                                          #:claim-expires-at
                                          (+ issued-at
-                                            (issuance-worker-claim-window-seconds
-                                             worker))))
+                                            (issuance-worker-claim-window-seconds worker))
+                                         #:prepaid-records prepaid-records
+                                         #:effective-action effective-action))
       (issuance-result 'completed completion #f entitlement-id
                        (entitlement-revision-revision
                         (issuance-completion-revision completion))

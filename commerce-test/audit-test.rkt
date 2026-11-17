@@ -95,7 +95,7 @@
      (define storage (open-sqlite-commerce-storage path))
      (storage-close storage)
      (define connection (sqlite3-connect #:database path #:mode 'read-only))
-     (check-equal? (query-value connection "PRAGMA user_version") 8)
+     (check-equal? (query-value connection "PRAGMA user_version") 9)
      (check-equal?
       (query-value
        connection
@@ -122,7 +122,7 @@
      (define migrated (open-sqlite-commerce-storage path))
      (storage-close migrated)
      (define reopened (sqlite3-connect #:database path #:mode 'read-only))
-     (check-equal? (query-value reopened "PRAGMA user_version") 8)
+     (check-equal? (query-value reopened "PRAGMA user_version") 9)
      (check-equal?
       (query-value
        reopened

@@ -129,7 +129,28 @@ and this duration are mutually exclusive. Missing paid evidence refuses with
 `order-paid-evidence-required`; out-of-range dates refuse before signing.
 The duration is Commerce policy metadata, never a new Permit protocol field.
 
-This narrow policy does not admit repeat one-time purchases into an existing
-lineage, allocate paid periods, isolate refunds across orders, or enable
-checkout. Existing lineage rejection and successor rules remain in force.
-Products must pass those separate gates before selling prepaid hosted service.
+The issuer now reconciles repeat one-time purchases for this opt-in policy
+using the order-scoped journal and schema v9 checkpoints (ADR-0026). It
+re-authenticates every contributing fact and preserves later paid orders when
+an older order is fully refunded. Fixed/perpetual policies retain their
+existing-lineage grant rejection. This does not enable checkout or establish
+merchant admission. Product/runtime acceptance remains separate.
+
+
+The initial calendar grant accepts an explicit `#:use-expires-at` aggregate
+expiry only under the opt-in duration policy. `storage-scope-journal` reads the
+ordered subject/Offer journal (at most 10,000 records, otherwise a typed
+`prepaid-history-limit` operator refusal). `storage-complete-issuance-work!`
+accepts `#:prepaid-records` together with `#:effective-action` (`grant` or
+`withdraw`): completion atomically refuses changed scope evidence, records the
+resulting rights action and appends the covered journal checkpoint. The outbox
+keeps its original triggering action. These are trusted issuer/storage APIs,
+not client-selected payment facts or authorization endpoints.
+
+For calendar policies the Alipay verifier additionally requires a signed
+payment timestamp matching canonical paid-at and the pinned merchant identity.
+Return/query reconciliation already verifies its signed payment timestamp.
+Other providers without equivalent paid-time verification refuse this opt-in
+mode when an evidence verifier is configured; fixture-only workers are not
+production assemblies. Full-refund retries for an already reconciled order do
+not permanently put the scope back into refund-pending.

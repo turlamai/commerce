@@ -418,7 +418,7 @@ Closes the storage during service shutdown.}
 
 @defproc[(open-sqlite-commerce-storage [database-path path-string?])
          commerce-storage?]{
-Opens or creates a Commerce-owned SQLite database. Schema v8 uses WAL mode,
+Opens or creates a Commerce-owned SQLite database. Schema v9 uses WAL mode,
 full commit synchronization, foreign keys, and database triggers that reject
 updates or deletes of accepted event and entitlement-lineage evidence.
 Earlier schema databases migrate in place without rewriting existing rows.
@@ -659,8 +659,8 @@ bounds, limits, installation binding, and activation shape through Permit.
 @racket[#:use-duration-months] opts initial grants into UTC calendar-month
 expiry derived from authenticated @racket[#:paid-at]; it is mutually exclusive
 with fixed @racket[#:use-expires-at]. Short destination months clamp the day
-while preserving time of day. Missing payment evidence refuses; this does not
-implement repeat-purchase period allocation or cross-order refund isolation.}
+while preserving time of day. Missing payment evidence refuses; the issuer reconciles repeat orders and full refunds against the scoped
+authenticated journal (ADR-0026); this does not enable checkout.}
 
 @defproc[(make-permit-entitlement-policy
           [id string?]
@@ -1243,3 +1243,27 @@ contract, and Permit integration are maintained in the repository's
 @filepath{docs/} directory, with the decision records under
 @filepath{docs/decisions/}. @hyperlink["https://github.com/turlamai/commerce"]{github.com/turlamai/commerce}
 hosts the source and the issue tracker.
+
+@section{Prepaid order reconciliation}
+
+@defproc[(storage-scope-journal [storage commerce-storage?]
+                              [subject-id string?] [offer-id string?]) list?]{
+Returns ordered journal records for one subject/Offer, with a 10,000-record
+operator bound. Records contain private payment evidence; never log them.
+The issuer re-authenticates every contributing record.}
+
+For calendar-duration policies, @racket[storage-complete-issuance-work!] also
+accepts @racket[#:prepaid-records] and @racket[#:effective-action]. Both must be
+supplied together. SQLite compares the records against the current scope inside
+the completion transaction, refuses @racket['prepaid-snapshot-stale] on change,
+and records an append-only coverage checkpoint beside the signed revision.
+The resulting action may retain a grant after another order's full refund;
+the triggering outbox action is unchanged. See ADR-0026 for migration and
+refund-before-payment behavior. No automatic recurring debit is introduced.
+
+@defproc[(storage-prepaid-revision? [storage commerce-storage?]
+                                 [entitlement-id string?]
+                                 [revision exact-nonnegative-integer?]) boolean?]{
+Recognizes an append-only prepaid reconciliation checkpoint. It is workflow
+metadata, never payment evidence. Hosted proof uses it to exclude the exact
+expiry instant for the half-open prepaid service interval.}
