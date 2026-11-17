@@ -15,8 +15,14 @@
                    (not (payment-event-paid-through event)))
         (refuse 'prepaid-evidence-conflict))
       (define key (cons (payment-event-provider event) (payment-event-order-id event)))
+      (define previous (hash-ref orders key #f))
+      (when (and previous (order-projection-paid? previous)
+                 (eq? (payment-event-kind event) 'payment-succeeded)
+                 (not (= (order-projection-paid-at previous)
+                         (payment-event-occurred-at event))))
+        (refuse 'prepaid-evidence-conflict))
       (define-values (next _intents)
-        (project-order-event (hash-ref orders key #f) event))
+        (project-order-event previous event))
       (hash-set orders key next)))
   (define ends
     (for/list ([order (in-hash-values orders)]

@@ -147,3 +147,13 @@
     (check-equal? (query-value sql "SELECT raw_payload FROM commerce_event_journal LIMIT 1") original)
     (check-equal? (query-value sql "SELECT COUNT(*) FROM commerce_prepaid_checkpoint") 0)
     (disconnect sql))))
+
+(test-case "one provider order cannot change its paid instant across accepted facts"
+  (with-db (lambda (path)
+    (define store (open-sqlite-commerce-storage path))
+    (accept! store "immutable-paid-a" "same" 'payment-succeeded 1774951237)
+    (accept! store "immutable-paid-b" "same" 'payment-succeeded 1775001600)
+    (define result (work! store))
+    (check-eq? (issuance-result-disposition result) 'released)
+    (check-eq? (issuance-result-error-code result) 'prepaid-evidence-conflict)
+    (storage-close store))))
