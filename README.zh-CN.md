@@ -1,7 +1,5 @@
 # Commerce
 
-**支持：**[问题与反馈](https://github.com/turlamai/commerce/issues) · [当前交付策略](https://github.com/turlamai/turlamai.github.io/blob/master/PORTFOLIO.zh-CN.md)
-
 产品家族的统一权益、独立分发与未来 Apple 内购接入，见
 [商业化推进方案](docs/commercialization.md)。Apple Developer 会员提供分发能力，
 不等于已有跨平台授权服务；各产品的定价与权益范围仍由产品仓库定义。
