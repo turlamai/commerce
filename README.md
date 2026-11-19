@@ -1,7 +1,5 @@
 # Commerce
 
-**Support:** [Issues & feedback](https://github.com/turlamai/commerce/issues) · [Development policy](https://github.com/turlamai/turlamai.github.io/blob/master/PORTFOLIO.md)
-
 For the product-family rights system, direct sales and future Apple purchases,
 see the [commercialization plan](docs/commercialization.md). Apple Developer
 membership is distribution capability, not a ready cross-platform license service.
