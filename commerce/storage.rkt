@@ -91,6 +91,8 @@
  storage-outbox-scan
  storage-order-journal
  storage-journal-sequence-ref
+ storage-scope-journal
+ storage-prepaid-revision?
  storage-order-outbox
  storage-issued-credential-ref
  storage-redrive-issuance-work!
@@ -131,7 +133,8 @@
  storage-unresolved-refund?
  storage-close)
 
-(require racket/list
+(require "private/journal-model.rkt"
+         racket/list
          "log.rkt"
          "private/model.rkt"
          "private/storage-model.rkt")
@@ -245,7 +248,9 @@
                                          #:key-id [key-id #f]
                                          #:claim-token [claim-token #f]
                                          #:claim-expires-at
-                                         [claim-expires-at #f])
+                                         [claim-expires-at #f]
+                                         #:prepaid-records [prepaid-records #f]
+                                         #:effective-action [effective-action #f])
   (check-storage 'storage-complete-issuance-work! storage)
   (check-claimed-work 'storage-complete-issuance-work! item)
   (for ([label/value
@@ -298,6 +303,12 @@
       (raise-argument-error
        'storage-complete-issuance-work!
        "exact-nonnegative-integer?" claim-expires-at)))
+  (unless (or (and (not prepaid-records) (not effective-action))
+              (and (pair? prepaid-records) (list? prepaid-records)
+                   (andmap journal-record? prepaid-records)
+                   (memq effective-action '(grant withdraw))))
+    (raise-argument-error 'storage-complete-issuance-work!
+                         "prepaid journal records and resulting grant/withdraw action, or neither" #f))
   (define completion
     ((commerce-storage-issuance-complete storage)
      item issuer subject-type entitlement-id credential-id policy-id
@@ -305,7 +316,7 @@
      recorded-at
      (and signed-credential-bytes
           (bytes->immutable-bytes signed-credential-bytes))
-     key-id claim-token claim-expires-at))
+     key-id claim-token claim-expires-at prepaid-records effective-action))
   (log-commerce-event!
    'info 'issuance-completed
    (hash 'idempotency-key (issuance-outbox-item-idempotency-key item)
@@ -471,6 +482,18 @@
 ;; Reads one journal row back by its durable sequence number. The issuer role
 ;; uses this to re-verify the exact evidence a claimed outbox row was derived
 ;; from; the sequence is immutable and never reused.
+(define (storage-prepaid-revision? storage entitlement-id revision)
+  (check-storage 'storage-prepaid-revision? storage)
+  (unless (and (opaque-id? entitlement-id) (exact-nonnegative-integer? revision))
+    (raise-argument-error 'storage-prepaid-revision? "entitlement id and nonnegative revision" #f))
+  ((commerce-storage-prepaid-revision? storage) entitlement-id revision))
+
+(define (storage-scope-journal storage subject-id offer-id)
+  (check-storage 'storage-scope-journal storage)
+  (unless (and (opaque-id? subject-id) (stable-id? offer-id))
+    (raise-argument-error 'storage-scope-journal "valid subject and Offer identifiers" #f))
+  ((commerce-storage-scope-journal storage) subject-id offer-id))
+
 (define (storage-journal-sequence-ref storage sequence)
   (check-storage 'storage-journal-sequence-ref storage)
   (unless (exact-nonnegative-integer? sequence)

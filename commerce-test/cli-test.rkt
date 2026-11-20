@@ -149,7 +149,7 @@
           (run-commerce-cli! (vector "doctor" (path->string path))))))
      (check-equal? code 0)
      (check-true (hash-ref report 'ok))
-     (check-equal? (hash-ref report 'schema-version) 8)
+     (check-equal? (hash-ref report 'schema-version) 9)
      (check-equal? (hash-ref report 'warnings) '())
      (check-equal? (hash-ref (hash-ref report 'journal) 'total) 0)
      (check-equal? (hash-ref (hash-ref report 'work) 'pending) 0))))

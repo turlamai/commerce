@@ -84,9 +84,18 @@
                     (entitlement-revision-entitlement-id revision)
                     'revision (entitlement-revision-revision revision)
                     'credential (envelope->jsexpr envelope))]
-           [(not (hash-ref policy 'usable?))
+           [(or (not (hash-ref policy 'usable?))
+                ;; Permit defines a final usable instant inclusively. The
+                ;; prepaid service contract is [start,end), so its checkpoint
+                ;; opts this read into excluding that exact UTC second.
+                (and (storage-prepaid-revision? storage
+                       (entitlement-revision-entitlement-id revision)
+                       (entitlement-revision-revision revision))
+                     (equal? at (verified-credential-use-expires-at credential))))
             (hasheq 'status "not-usable"
-                    'reasons (map symbol->string (hash-ref policy 'reasons)))]
+                    'reasons (if (hash-ref policy 'usable?)
+                                 '("paid-period-ended")
+                                 (map symbol->string (hash-ref policy 'reasons))))]
            [else
             ;; A product must still authorize edition, features and quotas.
             ;; A signed snapshot is not a guarantee of live merchant approval

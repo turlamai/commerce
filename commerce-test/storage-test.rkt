@@ -68,7 +68,7 @@
      (define connection
        (sqlite3-connect #:database path #:mode 'read/write))
      (query-exec connection "PRAGMA foreign_keys = ON")
-     (check-equal? (query-value connection "PRAGMA user_version") 8)
+     (check-equal? (query-value connection "PRAGMA user_version") 9)
      (check-equal?
       (query-value
        connection
@@ -533,7 +533,7 @@ SQL
      (storage-close storage)
      (define connection
        (sqlite3-connect #:database path #:mode 'read-only))
-     (check-equal? (query-value connection "PRAGMA user_version") 8)
+     (check-equal? (query-value connection "PRAGMA user_version") 9)
      (check-equal?
       (query-value
        connection
@@ -579,7 +579,7 @@ SQL
      (storage-close migrated)
      (define connection
        (sqlite3-connect #:database path #:mode 'read-only))
-     (check-equal? (query-value connection "PRAGMA user_version") 8)
+     (check-equal? (query-value connection "PRAGMA user_version") 9)
      (check-equal?
       (query-row
        connection

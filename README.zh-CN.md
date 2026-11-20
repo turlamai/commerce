@@ -30,9 +30,10 @@ Pancake、ZPAY、应用商店与未来渠道负责资金流转；Permit 负责�
 
 [使用选择、成熟度、升级与支持](docs/USING.zh-CN.md) · [English](docs/USING.md)
 
-首次一次性付款的 Permit 签发可选择 `#:use-duration-months`：从已认证付款时间
-按 UTC 日历月计算到期时间，短月份取有效末日。这只是策略基础能力，不代表
-连续订阅、后续购买或跨订单退款隔离已经实现，也不代表可以开售。
+预付一次性付款的 Permit 签发可选择 `#:use-duration-months`：每笔订单从已认证
+付款时间按 UTC 日历月计算有效期。签发端逐笔复验签名证据并原子记录覆盖范围，
+再次购买及全额退款按订单核算，退旧订单不撤销后续已付月份。这不等于已部署
+产品验收、商户准入或已经开售。
 详见 [Permit 集成边界](docs/permit-integration.md#prepaid-calendar-month-initial-grants)。
 
 ## 快速开始
@@ -180,7 +181,7 @@ Commerce 只保存确定性编排需要的标识、投影和审计证据。
 软件授权依据，不包含用户信息或领取 Token；实际凭证导入由产品端确认。
 
 运营人员可执行 `raco commerce doctor <database>` 进行**真正只读**的健康诊断：
-使用 SQLite 只读连接检查现有 schema v8 数据库，输出脱敏的 JSON 就绪状态。
+使用 SQLite 只读连接检查现有 schema v9 数据库，输出脱敏的 JSON 就绪状态。
 发现告警或不兼容的旧版数据库时返回非零退出码；不会创建数据库、自动迁移、
 新增索引或修复数据。需要迁移时必须按正式运维手册操作。
 
@@ -233,7 +234,7 @@ Racket 服务端签名下单、主动查单验签、严格异步通知及 SQLite
 - 渠道 adapter 契约与 mock 购买演示；
 - 持久 SQLite 原始事件 journal，包含摘要复核、精确重放、冲突拒绝和数据库级
   不可变保护；
-- SQLite schema v8，包含 v1–v7 原位迁移、确定性 journal 投影、订单与签发
+- SQLite schema v9，包含 v1–v8 原位迁移、确定性 journal 投影、订单与签发
   outbox 的原子写入，以及只追加且 revision 连续的 entitlement lineage 证据；
 - Pancake RSA-SHA256 原始字节验签，包含显式环境密钥、有限重放窗口、mode 绑定
   和脱敏的类型化错误；
@@ -263,7 +264,7 @@ Racket 服务端签名下单、主动查单验签、严格异步通知及 SQLite
 - HTTP webhook 边界与 claim 门户：对精确字节验签、解析持久 checkout
   期望（schema v6，只追加 binding）、主动查单、幂等 journal、完备状态码
   映射；门户经 HTTP 兑换一次性 claim（未知/重用/过期分别 404/409/410）；
-- schema v8 运营审计（只追加的 action/operator/reason 证据）与有界
+- schema v9 运营审计（只追加的 action/operator/reason 证据）与有界
   凭证补发（同一凭证换发新 token,带审计）；
 - 有界渠道对账：签名读取订单事实与投影比对，输出类型化差异，绝不改动
   持久状态；

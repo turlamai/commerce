@@ -14,6 +14,13 @@ All notable changes to Commerce are documented here. The format is based on
 
 ### Added
 
+- Reconcile opt-in prepaid calendar-month orders across repeat purchases and
+  full refunds, preserving independently paid later periods. Schema v9 adds
+  append-only signed-snapshot coverage; issuance verifies every contributing
+  journal record and refuses stale evidence before publication. Alipay calendar
+  policies require pinned merchant and provider-signed payment time. This is
+  library/fixture capability, not merchant admission or deployed acceptance.
+
 - Add an opt-in initial-grant `#:use-duration-months` policy derived from
   authenticated paid-at in UTC, with calendar-month clamping, exact payload
   checks and durable issuer restart/replay coverage. This does not enable

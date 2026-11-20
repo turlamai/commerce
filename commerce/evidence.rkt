@@ -33,7 +33,8 @@
          "permit.rkt"
          "private/journal-model.rkt"
          "private/model.rkt"
-         "storage.rkt")
+         "storage.rkt"
+         "private/alipay-time.rkt")
 
 (define (raise-commerce code message [data (hash)])
   (raise
@@ -314,7 +315,10 @@
 ;; caller decides the release code from the error code, so every refusal is
 ;; deterministic and auditable.
 (define (verify-issuance-evidence! verifier record claimed-offer-id
-                                   claimed-subject-id)
+                                   claimed-subject-id
+                                   #:require-paid-time? [require-paid-time? #f])
+  (unless (boolean? require-paid-time?)
+    (raise-argument-error 'verify-issuance-evidence! "boolean?" require-paid-time?))
   (unless (issuance-evidence-verifier? verifier)
     (raise-argument-error
      'verify-issuance-evidence! "issuance-evidence-verifier?" verifier))
@@ -331,6 +335,10 @@
      claimed-subject-id))
   (define event (journal-record-event record))
   (define payload (journal-record-payload record))
+  (when (and require-paid-time? (eq? (payment-event-kind event) 'payment-succeeded)
+             (not (equal? (payment-event-provider event) "alipay")))
+    (raise-commerce 'evidence-paid-time-unsupported
+                    "prepaid policy requires provider-signed payment time" (hash)))
   (verify-catalog-and-claim! verifier record claimed-offer-id
                              claimed-subject-id)
   (cond
@@ -363,7 +371,20 @@
        [else
         (define notice
           (verify-alipay-notification (parse-alipay-form payload) pem))
-        (alipay-notification-matches! notice record)])]
+        (alipay-notification-matches! notice record)
+        (when require-paid-time?
+          (define fields (alipay-notification-fields notice))
+          (define (field name) (define found (assoc name fields)) (and found (cdr found)))
+          (define paid-at
+            (with-handlers ([exn:fail? (lambda (_) #f)])
+              (gmt8-wall-time->epoch (field "gmt_payment"))))
+          (unless (and paid-at (= paid-at (payment-event-occurred-at event))
+                       (equal? (field "app_id")
+                               (issuance-evidence-verifier-alipay-app-id verifier))
+                       (equal? (field "seller_id")
+                               (issuance-evidence-verifier-alipay-seller-id verifier)))
+            (raise-commerce 'evidence-paid-time-mismatch
+                            "prepaid signed payment time or merchant does not match" (hash))))])]
     [(and (string=? (payment-event-provider event) "alipay")
           (eq? (payment-event-kind event) 'payment-refunded))
      (verify-alipay-refund! verifier record)]

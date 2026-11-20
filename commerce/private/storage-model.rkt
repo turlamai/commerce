@@ -29,7 +29,7 @@
                   retire-expired-claims
                   checkout-binding-create checkout-binding-lookup
                   audit-append audit-scan reissue claim-record-lookup
-                  unresolved-refund close)
+                  unresolved-refund scope-journal prepaid-revision? close)
   #:transparent)
 
 ;; disposition is 'projected or 'blocked. No pending journal row is represented

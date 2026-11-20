@@ -3,14 +3,16 @@
 (provide open-sqlite-commerce-storage)
 
 (require db
+         json
          file/sha1
+         racket/list
          racket/match
          "../private/journal-model.rkt"
          "../private/model.rkt"
          "../private/projection.rkt"
          "../private/storage-model.rkt")
 
-(define schema-version 8)
+(define schema-version 9)
 (define application-id 1129270605) ; ASCII "COMM"
 (define sqlite-max-integer 9223372036854775807)
 
@@ -161,11 +163,23 @@ SELECT EXISTS (
   WHERE j.subject_id = ? AND j.offer_id = ?
     AND j.event_kind = 'payment-refunded'
     AND NOT EXISTS (
+      SELECT 1 FROM commerce_prepaid_checkpoint AS c
+      JOIN commerce_entitlement_lineage AS l ON l.entitlement_id = c.entitlement_id
+      WHERE l.subject_id = j.subject_id AND l.offer_id = j.offer_id
+        AND c.journal_sequence >= (
+          SELECT MIN(j2.sequence) FROM commerce_event_journal AS j2
+          WHERE j2.provider = j.provider AND j2.order_id = j.order_id
+            AND j2.subject_id = j.subject_id AND j2.offer_id = j.offer_id
+            AND j2.event_kind = 'payment-refunded'
+        )
+    )
+    AND NOT EXISTS (
       SELECT 1
       FROM commerce_issuance_outbox AS o
       JOIN commerce_entitlement_revision AS r
         ON r.issuance_outbox_id = o.id
-      WHERE o.source_journal_sequence = j.sequence
+      WHERE o.provider = j.provider AND o.order_id = j.order_id
+        AND o.subject_id = j.subject_id AND o.offer_id = j.offer_id
         AND o.action = 'withdraw'
     )
 )
@@ -742,6 +756,20 @@ SQL
            ))])
     (query-exec connection statement)))
 
+(define (create-prepaid-schema! connection)
+  (query-exec connection
+   "CREATE TABLE IF NOT EXISTS commerce_prepaid_checkpoint (
+      entitlement_id TEXT NOT NULL, revision INTEGER NOT NULL,
+      journal_sequence INTEGER NOT NULL REFERENCES commerce_event_journal(sequence),
+      PRIMARY KEY(entitlement_id, revision),
+      FOREIGN KEY(entitlement_id, revision)
+        REFERENCES commerce_entitlement_revision(entitlement_id, revision))")
+  (for ([operation '("UPDATE" "DELETE")])
+    (query-exec connection
+     (format "CREATE TRIGGER IF NOT EXISTS commerce_prepaid_no_~a BEFORE ~a ON commerce_prepaid_checkpoint
+              BEGIN SELECT RAISE(ABORT, 'prepaid checkpoints are immutable'); END"
+             (string-downcase operation) operation))))
+
 (define (initialize-schema! connection)
   (define stored-application-id
     (query-value connection "PRAGMA application_id"))
@@ -760,6 +788,7 @@ SQL
         (create-audit-schema! connection)
         (query-exec connection
                     (format "PRAGMA application_id = ~a" application-id))
+        (create-prepaid-schema! connection)
         (query-exec connection
                     (format "PRAGMA user_version = ~a" schema-version)))
       #:option 'immediate)]
@@ -782,6 +811,7 @@ SQL
         (create-delivery-schema! connection)
         (create-checkout-binding-schema! connection)
         (create-audit-schema! connection)
+        (create-prepaid-schema! connection)
         (query-exec connection
                     (format "PRAGMA user_version = ~a" schema-version)))
       #:option 'immediate)]
@@ -798,6 +828,7 @@ SQL
         (create-delivery-schema! connection)
         (create-checkout-binding-schema! connection)
         (create-audit-schema! connection)
+        (create-prepaid-schema! connection)
         (query-exec connection
                     (format "PRAGMA user_version = ~a" schema-version)))
       #:option 'immediate)]
@@ -814,6 +845,7 @@ SQL
                     "ALTER TABLE commerce_order_projection ADD COLUMN paid_through INTEGER CHECK (paid_through >= 0)")
         (create-checkout-binding-schema! connection)
         (create-audit-schema! connection)
+        (create-prepaid-schema! connection)
         (query-exec connection
                     (format "PRAGMA user_version = ~a" schema-version)))
       #:option 'immediate)]
@@ -826,6 +858,7 @@ SQL
          "ALTER TABLE commerce_event_journal ADD COLUMN signature_evidence BLOB")
         (create-checkout-binding-schema! connection)
         (create-audit-schema! connection)
+        (create-prepaid-schema! connection)
         (query-exec connection
                     (format "PRAGMA user_version = ~a" schema-version)))
       #:option 'immediate)]
@@ -836,6 +869,7 @@ SQL
         (query-exec
          connection
          "ALTER TABLE commerce_event_journal ADD COLUMN signature_evidence BLOB")
+        (create-prepaid-schema! connection)
         (query-exec connection
                     (format "PRAGMA user_version = ~a" schema-version)))
       #:option 'immediate)]
@@ -847,6 +881,7 @@ SQL
          connection
          "ALTER TABLE commerce_event_journal ADD COLUMN signature_evidence BLOB")
         (create-audit-schema! connection)
+        (create-prepaid-schema! connection)
         (query-exec connection
                     (format "PRAGMA user_version = ~a" schema-version)))
       #:option 'immediate)]
@@ -864,9 +899,15 @@ SQL
          "ALTER TABLE commerce_event_journal ADD COLUMN signature_evidence BLOB")
         (query-exec connection
                     "ALTER TABLE commerce_order_projection ADD COLUMN paid_through INTEGER CHECK (paid_through >= 0)")
+        (create-prepaid-schema! connection)
         (query-exec connection
                     (format "PRAGMA user_version = ~a" schema-version)))
       #:option 'immediate)]
+    [(= stored-version 8)
+     (call-with-transaction connection
+       (lambda ()
+         (create-prepaid-schema! connection)
+         (query-exec connection "PRAGMA user_version = 9")) #:option 'immediate)]
     [(not (= stored-version schema-version))
      (raise-commerce
       'unsupported-schema-version
@@ -1151,7 +1192,7 @@ SQL
 (define (complete-work item issuer subject-type entitlement-id credential-id
                        policy-id policy-version payload-bytes issued-at
                        recorded-at signed-credential-bytes key-id
-                       claim-token claim-expires-at)
+                       claim-token claim-expires-at prepaid-records effective-action)
     (check-sqlite-integer 'policy-version policy-version)
     (check-sqlite-integer 'recorded-at recorded-at)
     (when signed-credential-bytes
@@ -1217,7 +1258,12 @@ SQL
              'lease-not-held
              "issuance completion requires the active claim lease"
              (hash 'idempotency-key key 'outbox-id id)))
-          (define action-symbol (string->symbol action))
+          (when prepaid-records
+            (unless (equal? prepaid-records (scope-journal subject-id offer-id))
+              (raise-commerce 'prepaid-snapshot-stale
+                              "prepaid journal changed during signing" (hash))))
+          (define action-symbol (or effective-action (string->symbol action)))
+          (define recorded-action (symbol->string action-symbol))
           (define identity
             (query-maybe-row connection select-lineage-identity-sql
                              issuer subject-type subject-id offer-id))
@@ -1248,7 +1294,7 @@ SQL
                (values (add1 (entitlement-revision-revision latest))
                        (entitlement-revision-revision latest)
                        #f)]
-              [(eq? action-symbol 'grant)
+              [(or (eq? action-symbol 'grant) prepaid-records)
                (values 0 #f #t)]
               [else
                (raise-commerce
@@ -1257,6 +1303,17 @@ SQL
                 (hash 'idempotency-key key
                       'offer-id offer-id
                       'subject-id subject-id))]))
+          (when prepaid-records
+            (define proposed-revision
+              (with-handlers ([exn:fail? (lambda (_) #f)])
+                (define payload (bytes->jsexpr immutable-payload))
+                (and (hash? payload) (hash-ref payload 'revision #f))))
+            (unless (exact-nonnegative-integer? proposed-revision)
+              (raise-commerce 'invalid-issuance-record
+                              "prepaid snapshot has no valid revision" (hash)))
+            (unless (= proposed-revision next-revision)
+              (raise-commerce 'prepaid-snapshot-stale
+                              "prepaid lineage advanced during signing" (hash))))
           (when (= (query-value
                     connection
                     "SELECT EXISTS(SELECT 1 FROM commerce_entitlement_revision
@@ -1288,8 +1345,14 @@ INSERT INTO commerce_entitlement_revision
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 SQL
            entitlement-id next-revision (sql-nullable previous-revision)
-           credential-id id action policy-id policy-version immutable-payload
+           credential-id id recorded-action policy-id policy-version immutable-payload
            actual-digest issued-at recorded-at)
+          (when prepaid-records
+            (query-exec connection
+             "INSERT INTO commerce_prepaid_checkpoint(entitlement_id, revision, journal_sequence)
+              VALUES (?, ?, ?)"
+             entitlement-id next-revision
+             (journal-record-sequence (last prepaid-records))))
           (query-exec
            connection
            #<<SQL
@@ -1483,6 +1546,25 @@ SQL
                           (string=? (vector-ref row 9)
                                     (symbol->string status))))
       (row->outbox row)))
+
+  (define (prepaid-revision? entitlement-id revision)
+    (check-open)
+    (not (zero? (query-value connection
+      "SELECT EXISTS(SELECT 1 FROM commerce_prepaid_checkpoint
+         WHERE entitlement_id = ? AND revision = ?)" entitlement-id revision))))
+
+  (define (scope-journal subject-id offer-id)
+    (check-open)
+    (define rows
+      (query-rows connection
+       "SELECT sequence, provider, event_id, raw_payload, payload_digest, event_kind,
+               order_id, offer_id, subject_id, currency, amount_minor_units,
+               occurred_at, received_at, paid_through, signature_evidence
+        FROM commerce_event_journal WHERE subject_id = ? AND offer_id = ?
+        ORDER BY sequence LIMIT 10001" subject-id offer-id))
+    (when (> (length rows) 10000)
+      (raise-commerce 'prepaid-history-limit "prepaid history needs operator compaction" (hash)))
+    (map row->record rows))
 
   (define (order-journal provider order-id)
     (for/list ([row (in-list
@@ -1802,4 +1884,4 @@ SQL
    readiness-snapshot retire-expired-claims
    create-checkout-binding! checkout-binding-ref
    append-audit! audit-scan reissue-claim! claim-record-ref
-   unresolved-refund close))
+   unresolved-refund scope-journal prepaid-revision? close))
