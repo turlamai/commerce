@@ -1,5 +1,8 @@
 # Commerce
 
+Production servers: use a [versioned package installation](docs/production-install.md), not a linked checkout.
+
+
 For the product-family rights system, direct sales and future Apple purchases,
 see the [commercialization plan](docs/commercialization.md). Apple Developer
 membership is distribution capability, not a ready cross-platform license service.

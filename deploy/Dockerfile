@@ -21,7 +21,7 @@ FROM ${RACKET_IMAGE}
 WORKDIR /src
 
 # Permit source is pinned to the same audited SHA as CI.
-ARG PERMIT_COMMIT=61211f7bf320520c0d3627c4d715e7de7fee52b2
+ARG PERMIT_COMMIT=bba48fd460de6602d1d62afe7644c0ebd2dd62e6
 ADD https://github.com/turlamai/permit/archive/${PERMIT_COMMIT}.tar.gz /tmp/permit-source.tar.gz
 RUN mkdir -p /tmp/permit-src \
  && tar -xzf /tmp/permit-source.tar.gz --strip-components=1 -C /tmp/permit-src \

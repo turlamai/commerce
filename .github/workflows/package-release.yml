@@ -1,0 +1,58 @@
+name: Package release
+on:
+  pull_request:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Bogdanp/setup-racket@v1.14
+        with:
+          version: '9.3'
+      - name: Install the CI-pinned Permit dependency
+        run: raco pkg install --auto --batch --no-docs --name permit https://github.com/turlamai/permit.git#bba48fd460de6602d1d62afe7644c0ebd2dd62e6
+      - name: Build committed source archive
+        run: bash scripts/package-release.sh "$RUNNER_TEMP/release"
+      - name: Verify and install the archive, never a source link
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/release"
+          sha256sum -c SHA256SUMS
+          raco pkg install --copy --auto --batch --no-docs --name commerce commerce-*.zip
+          raco test -p commerce
+          raco setup --check-pkg-deps commerce
+      - uses: actions/upload-artifact@v4
+        with:
+          name: commerce-release
+          path: ${{ runner.temp }}/release/*
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: commerce-release
+          path: release
+      - name: Require matching version and successful main CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="$(jq -r .version release/release.json)"
+          test "$GITHUB_REF_NAME" = "v$version"
+          test "$(jq -r .source_commit release/release.json)" = "$GITHUB_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push" --jq '.workflow_runs | any(.head_branch == "main" and .conclusion == "success")' | grep -qx true
+          printf '%s\n' 'Versioned Racket source package. Verify SHA256SUMS before installation. Library release only; merchant approval and deployed payment acceptance remain separate gates.' > release-notes.md
+      - name: Publish immutable version assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "commerce ${{ github.ref_name }}" --notes-file release-notes.md release/*
