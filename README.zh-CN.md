@@ -1,5 +1,8 @@
 # Commerce
 
+生产服务器请采用[固定版本包安装](docs/production-install.zh-CN.md)，不使用源码目录链接。
+
+
 产品家族的统一权益、独立分发与未来 Apple 内购接入，见
 [商业化推进方案](docs/commercialization.md)。Apple Developer 会员提供分发能力，
 不等于已有跨平台授权服务；各产品的定价与权益范围仍由产品仓库定义。
