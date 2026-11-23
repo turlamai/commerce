@@ -181,7 +181,8 @@
 ;; authorized refund operation. An HTTP response is never refund evidence;
 ;; reconciliation still requires an independently signed refund query.
 (module+ internal
-  (provide make-alipay-full-refund-sender validate-alipay-refund-client!))
+  (provide make-alipay-full-refund-sender validate-alipay-refund-client!
+           default-transport form-encode))
 
 (define (validate-alipay-refund-client! client binding environment)
   (unless (and (alipay-query-client? client) (alipay-binding? binding)

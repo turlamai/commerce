@@ -1,5 +1,7 @@
 # Commerce
 
+[即刻收直连月包与独立签发](docs/nowpay-direct.zh-CN.md) — production access is still gated.
+
 生产服务器请采用[固定版本包安装](docs/production-install.zh-CN.md)，不使用源码目录链接。
 
 

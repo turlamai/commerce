@@ -141,3 +141,7 @@ ZPAY arrive later through the same journal/outbox boundary. Architecture is
 allowed to become more capable, but never by moving provider secrets or Permit
 private keys into products.
 
+
+## Provider-specific current access
+
+[ADR-0027](decisions/0027-nowpay-direct-duration.md) adds an opt-in NowPay Direct issuer path alongside the money-event pipeline. An issuer-owned active access query, private lineage/audit database and nonce-bound Permit evidence do not manufacture payment or settlement facts. The public HTTP edge never receives Permit private keys or writes that issuer database.

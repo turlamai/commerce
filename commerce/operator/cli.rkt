@@ -21,6 +21,7 @@
 (define (usage)
   (string-append
    "usage:\n"
+   "  raco commerce nowpay <configuration> charge|serve\n"
    "  raco commerce doctor  <database>\n"
    "  raco commerce find    <database> [pending|processing|completed]\n"
    "  raco commerce explain <database> <provider> <order-id>\n"
@@ -189,6 +190,8 @@
 ;; usage error. Output is JSON on stdout; module `main` performs the exit.
 (define (run-commerce-cli! arguments)
   (match arguments
+    [(vector "nowpay" configuration command)
+     ((dynamic-require 'commerce/nowpay-direct/cli 'run-nowpay-direct-cli!) configuration command)]
     [(vector "doctor" database)
      (with-existing-database database
        (lambda () (command-doctor database)))]

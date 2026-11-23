@@ -1,5 +1,7 @@
 # Commerce
 
+[NowPay Direct monthly access and isolated issuance](docs/nowpay-direct.md) — production access is still gated.
+
 Production servers: use a [versioned package installation](docs/production-install.md), not a linked checkout.
 
 

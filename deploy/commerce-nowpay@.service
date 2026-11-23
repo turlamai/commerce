@@ -1,0 +1,23 @@
+[Unit]
+Description=Commerce NowPay Direct isolated issuer
+
+[Service]
+Type=exec
+User=commerce-issuer
+Group=commerce-issuer
+ExecStart=/opt/commerce/current/racket/bin/raco commerce nowpay /etc/commerce/nowpay-direct.json serve
+Environment=PLTUSERHOME=/var/lib/commerce-direct/racket-user
+WorkingDirectory=/var/lib/commerce-direct
+StandardInput=socket
+StandardOutput=inherit
+StandardError=journal
+RuntimeMaxSec=45
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/commerce-direct
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes

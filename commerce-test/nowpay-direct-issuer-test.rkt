@@ -1,0 +1,53 @@
+#lang racket/base
+(require rackunit db json racket/file racket/port permit/issuer permit/envelope permit/credential
+         commerce commerce/nowpay-direct/issuer
+         (submod "nowpay-direct-test.rkt" test-support))
+(define-values (private public) (generate-ed25519-keypair))
+(define trust (jsexpr->trust-store
+  (hasheq 'protocol "permit-trust-store" 'version 1 'issuer "issuer_synthetic"
+   'keys (hasheq 'fixture (hasheq 'algorithm "Ed25519" 'public_key (public-key->base64 public)
+    'status "active" 'purposes '("entitlement") 'not_before 'null 'not_after 'null)))))
+(define tmp (make-temporary-file "nowpay-issuer-~a" 'directory))
+(define now 1795392000)
+(define request (hasheq 'version 1 'service_id "service_synthetic" 'buyer_id "usr_synthetic" 'nonce (make-string 64 #\a)))
+(define (issuer db #:client [c (client)] #:purchasing? [purchasing? #f])
+  (make-nowpay-direct-issuer #:client c #:database db #:issuer "issuer_synthetic"
+   #:service-id "service_synthetic" #:product-id "publy" #:edition "personal"
+   #:private-key private #:key-id "fixture" #:trust-store trust
+   #:clock (lambda () now) #:purchasing-enabled? purchasing?))
+(define (claims response)
+  (verified-credential-claims (verify-credential (jsexpr->envelope (hash-ref response 'credential)) trust)))
+(dynamic-wind void
+ (lambda ()
+  (define p (build-path tmp "state.sqlite"))
+  (define db (sqlite3-connect #:database p #:mode 'create))
+  (define s (issuer db))
+  (define result (authorize-nowpay-direct s request))
+  (define first (claims result))
+  (check-equal? (hash-ref first 'revision) 0)
+  (check-equal? (hash-ref (hash-ref first 'subject) 'id) "usr_synthetic")
+  (check-equal? (hash-ref (hash-ref first 'constraints) 'use_expires_at) "2026-12-01T00:00:00Z")
+  (define extension (hash-ref (hash-ref first 'extensions) 'jrtx.site/commerce/nowpay-direct))
+  (check-equal? (hash-ref extension 'request_nonce) (make-string 64 #\a))
+  (check-equal? (hash-ref extension 'valid_from) "2026-11-01T00:00:00Z")
+  (check-equal? (authorize-nowpay-direct s request) result)
+  (check-equal? (query-value db "SELECT COUNT(*) FROM direct_authorizations") 1)
+  (check-exn exn:fail:commerce? (lambda () (authorize-nowpay-direct s (hash-set request 'buyer_id "different_user"))))
+  (check-exn exn:fail:sql? (lambda () (query-exec db "DELETE FROM direct_authorizations")))
+  (disconnect db)
+  (define restarted (sqlite3-connect #:database p))
+  (define new-result (authorize-nowpay-direct (issuer restarted) (hash-set request 'nonce (make-string 64 #\b))))
+  (check-equal? (hash-ref (claims new-result) 'revision) 1)
+  (check-equal? (hash-ref (claims new-result) 'entitlement_id) (hash-ref first 'entitlement_id))
+  (set! now (+ now 31))
+  (check-exn exn:fail:commerce? (lambda () (authorize-nowpay-direct (issuer restarted) request)))
+  (define denied (issuer restarted #:client (client #:consult (hasheq 'code "10000" 'decision "DENY" 'capability_status "ENABLED" 'charging_options '()))))
+  (define denial (authorize-nowpay-direct denied (hash-set request 'nonce (make-string 64 #\c))))
+  (check-equal? (hash-ref denial 'decision) "DENY")
+  (check-false (hash-has-key? denial 'credential))
+  (check-equal? (query-value restarted "SELECT revision FROM direct_lineages") 1)
+  (define failure (issuer restarted #:client (client #:consult (hash-set allow 'valid_until "2026-01-01 00:00:00"))))
+  (check-exn exn:fail:commerce? (lambda () (authorize-nowpay-direct failure (hash-set request 'nonce (make-string 64 #\d)))))
+  (check-equal? (query-value restarted "SELECT COUNT(*) FROM direct_authorizations") 3)
+  (disconnect restarted))
+ (lambda () (delete-directory/files tmp)))
