@@ -21,6 +21,8 @@
                      commerce/retention
                      commerce/purchase-progress
                      commerce/checkout-http
+                     commerce/nowpay-direct
+                     commerce/nowpay-direct/issuer
                      commerce/alipay
                      commerce/alipay/reconcile))
 
@@ -1271,3 +1273,13 @@ refund-before-payment behavior. No automatic recurring debit is introduced.
 Recognizes an append-only prepaid reconciliation checkpoint. It is workflow
 metadata, never payment evidence. Hosted proof uses it to exclude the exact
 expiry instant for the half-open prepaid service interval.}
+
+@section{NowPay Direct duration access}
+
+@defmodule[commerce/nowpay-direct]
+
+@racket[make-nowpay-direct-client] takes the merchant application identity, merchant RSA private key, provider public key, external product id, reviewed integer price, optional pinned SKU and fixed HTTPS return URL. Its production transport is bounded, does not redirect or retry, and authenticates the literal RSA2 response before strict JSON and interval validation. @racket[nowpay-direct-charge-query] returns an opaque capability/SKU result; @racket[nowpay-direct-purchase-consult] takes a stable application buyer id and returns an opaque current-access result. These values are not payment events or settlement evidence.
+
+@defmodule[commerce/nowpay-direct/issuer]
+
+@racket[make-nowpay-direct-issuer] assembles the explicit isolated issuer with a client, private SQLite connection, reviewed service/product/edition, Permit key and trust store. @racket[authorize-nowpay-direct] accepts one versioned service/buyer/nonce request; it actively queries the provider itself and returns fresh request-bound signed Permit evidence only for valid duration access. The public HTTP edge cannot provide an ALLOW response or write the issuer database. No refund-write API is supplied. See @hyperlink["https://github.com/turlamai/commerce/blob/main/docs/nowpay-direct.md"]{the Direct deployment and failure contract} and ADR-0027 for socket ACLs, replay, privacy and remaining live acceptance.

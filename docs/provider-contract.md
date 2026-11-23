@@ -150,3 +150,7 @@ order query make the journal/reconciliation boundary mandatory. Commerce will
 not model ZPAY as a recurring provider unless the live provider contract gains
 that capability.
 
+
+## NowPay Direct duration state
+
+The explicit [Direct adapter](nowpay-direct.md) queries current duration access; it does not convert ALLOW into a payment event. Only an issuer-owned live request can bind the signed response to the configured product and stable application user. The private socket/stdio issuer and request-bound Permit extension are defined in [ADR-0027](decisions/0027-nowpay-direct-duration.md). Basic Collection refund/query APIs and payment journal semantics are unchanged.

@@ -6,6 +6,13 @@ All notable changes to Commerce are documented here. The format is based on
 
 ## Unreleased
 
+## [0.1.2] - 2026-11-23
+
+### Added
+
+- Add the NowPay Direct monthly access adapter and an isolated socket/stdio Permit issuer. Strict native response verification, stable app-user binding, request-bound freshness, private monotonic lineage and archive-installed CLI are distinct from payment events. Purchasing remains explicitly gated; live acceptance is still required.
+
+
 ## [0.1.1] - 2026-11-23
 
 ### Added

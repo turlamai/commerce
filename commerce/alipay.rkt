@@ -322,6 +322,8 @@
       (bytes->string/utf-8 raw)))
   (unless (member node-name
                   '("alipay_trade_query_response"
+                    "alipay_aipay_nowpaydirect_charge_query_response"
+                    "alipay_aipay_nowpaydirect_purchase_consult_response"
                     "alipay_trade_refund_response"
                     "alipay_trade_fastpay_refund_query_response"))
     (fail 'alipay-query-invalid "unsupported Alipay signed response node"))

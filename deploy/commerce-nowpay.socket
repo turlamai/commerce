@@ -1,0 +1,14 @@
+[Unit]
+Description=Commerce NowPay Direct local issuer socket
+
+[Socket]
+ListenStream=/run/commerce-nowpay.sock
+Accept=yes
+SocketMode=0660
+SocketUser=commerce-issuer
+SocketGroup=publy
+RemoveOnStop=yes
+MaxConnections=8
+
+[Install]
+WantedBy=sockets.target

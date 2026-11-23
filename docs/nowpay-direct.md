@@ -1,0 +1,23 @@
+# NowPay Direct duration adapter
+
+[简体中文](nowpay-direct.zh-CN.md) · [authority and issuer decision](decisions/0027-nowpay-direct-duration.md)
+
+`commerce/nowpay-direct` is an explicit server-side, production-gateway adapter for `alipay.aipay.nowpaydirect.charge.query` and `purchase.consult`. It reuses the native bounded Alipay transport and exact-byte RSA2 verifier, then applies the public Permit strict JSON reader, decimal-money validation, the reviewed MONTH SKU policy and Asia/Shanghai interval parsing. The opaque result retains the application user and configured external product from the actual live request. Results cannot be manufactured from a public constructor.
+
+Current access is not a payment receipt: the response does not echo every request binding, so a stored response signature alone cannot prove the beneficiary. The explicit issuer must make its own live request over the fixed TLS endpoint. No browser return, customer input or edge-provided ALLOW is accepted as grant evidence. There is no refund-write command and no canonical payment/revenue event is fabricated.
+
+## Standard installed commands
+
+After installing a released source package, use `raco commerce nowpay /etc/commerce/nowpay-direct.json charge` to query the configured product without loading Permit private keys or initiating a purchase. Output is limited to capability, reviewed SKU, integer price and period. `ENABLED`, a unique matching MONTH SKU and the configured price are all required to offer a new purchase. A disabled new-purchase capability does not revoke existing valid access.
+
+The `serve` command consumes one bounded strict-JSON frame on stdin and returns one JSON frame on stdout. Install [the socket](../deploy/commerce-nowpay.socket) and [per-connection issuer unit](../deploy/commerce-nowpay@.service) with a dedicated `commerce-issuer` OS user. Provision `/var/lib/commerce-direct` as mode 0700 owned only by that issuer. Merchant and Permit keys are separate mode-0600 files; the public product process cannot read them. The local socket is mode 0660, accessible only to that issuer and the configured product group. Other products need separate configuration, sockets and state; do not share a developer/root package scope.
+
+Start from the [intentionally incomplete configuration template](../deploy/nowpay-direct.example.json). Production issuance requires a native Ed25519 provider and fails closed if none is available. `purchase_buyer_allowlist` optionally restricts new purchase URLs to named application users; an empty list permits none, while omission permits all users only when purchasing is enabled. Existing ALLOW access is unaffected by this rollout control.
+
+Keep `purchasing_enabled=false` until merchant/product approval, live query validation, limits and application acceptance are verified. The CLI does not create/configure products: use the official management miniapp. SDK names such as `outProductId` map to `biz_content.out_product_id`; the product supplies its stable application user id as `external_buyer_id`.
+
+The application frame is `{ "version": 1, "service_id": "reviewed-service", "buyer_id": "stable-application-user", "nonce": "64-lowercase-hex-characters" }`. Unknown fields are refused. For ALLOW, the issuer signs a normal Permit entitlement whose `jrtx.site/commerce/nowpay-direct` extension binds the nonce, service, external product, platform period and 30-second freshness window. Consumers independently verify Permit and all bindings for each admission and again at queued execution; do not reuse the response for another task. Provider periods are authoritative and must not be replaced by an invented 30-day window.
+
+Private SQLite state serializes fresh observations, monotonically advances each subject's lineage and atomically stores the raw signed response plus exact delivered envelope before replying. Repeating the same nonce/request during its short lifetime returns identical evidence; changing its subject or using it after expiry refuses. This state is not a payment ledger and is not writable by the public edge. Protect backups and restrict raw-response access. Archive retired audit stores under the operator's published retention policy without erasing lineage/replay protection from active state.
+
+The generic client/issuer constructors accept explicit transports and clocks for synthetic tests. Production CLI configuration cannot select a transport, clock or provider response. Ordinary errors expose only typed codes, never raw payloads, purchase tokens, private key material or parser/transport messages. Green fixture tests do not replace live duration purchase, refund-to-denial, expiry/recovery and merchant-limit acceptance.

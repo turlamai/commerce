@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "environment": "production",
+  "app_id": "REPLACE_WITH_APPROVED_APP_ID",
+  "out_product_id": "REPLACE_WITH_MANAGEMENT_PRODUCT_ID",
+  "sku_id": false,
+  "price_minor": 2900,
+  "callback_url": "https://app.example.com/hosted/return",
+  "merchant_private_key_path": "/etc/commerce/keys/nowpay/merchant-private.pem",
+  "alipay_public_key_path": "/etc/commerce/keys/nowpay/alipay-public.pem",
+  "service_id": "publy",
+  "product_id": "publy",
+  "edition": "personal",
+  "issuer": "REPLACE_WITH_REVIEWED_ISSUER",
+  "permit_key_id": "REPLACE_WITH_REVIEWED_KEY_ID",
+  "permit_private_key_path": "/etc/commerce/keys/permit/private.der",
+  "permit_trust_store_path": "/etc/commerce/keys/permit/trust.json",
+  "state_path": "/var/lib/commerce-direct/authorizations.sqlite",
+  "purchasing_enabled": false,
+  "purchase_buyer_allowlist": []
+}
