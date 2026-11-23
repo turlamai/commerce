@@ -6,15 +6,17 @@
          "../nowpay-direct.rkt" (submod "../nowpay-direct.rkt" internal)
          "../private/model.rkt" "../private/time.rkt")
 (provide make-nowpay-direct-issuer authorize-nowpay-direct)
-(struct direct-issuer (client db issuer service product edition key key-id trust clock purchasing?))
+(struct direct-issuer (client db issuer service product edition key key-id trust clock purchasing? buyers))
 (define (refuse code)
   (raise (exn:fail:commerce "NowPay Direct authorization refused" (current-continuation-marks) code (hash))))
 (define (make-nowpay-direct-issuer #:client client #:database db #:issuer issuer
          #:service-id service #:product-id product #:edition edition
          #:private-key key #:key-id kid #:trust-store trust
-         #:clock [clock current-seconds] #:purchasing-enabled? [purchasing? #f])
+         #:clock [clock current-seconds] #:purchasing-enabled? [purchasing? #f]
+         #:purchase-buyer-allowlist [buyers #f])
   (unless (and (nowpay-direct-client? client) (connection? db) (string? issuer)
-               (string? service) (string? product) (string? edition) (boolean? purchasing?))
+               (string? service) (string? product) (string? edition) (boolean? purchasing?)
+               (or (not buyers) (and (list? buyers) (andmap string? buyers))))
     (refuse 'nowpay-direct-configuration-invalid))
   (query-exec db "PRAGMA busy_timeout=45000")
   (query-exec db "PRAGMA journal_mode=WAL")
@@ -23,7 +25,7 @@
   (query-exec db "CREATE TABLE IF NOT EXISTS direct_authorizations (nonce TEXT PRIMARY KEY, request_digest TEXT NOT NULL, deadline INTEGER NOT NULL, response BLOB NOT NULL, provider_raw BLOB NOT NULL)")
   (query-exec db "CREATE TRIGGER IF NOT EXISTS direct_no_update BEFORE UPDATE ON direct_authorizations BEGIN SELECT RAISE(ABORT, 'immutable direct observation'); END")
   (query-exec db "CREATE TRIGGER IF NOT EXISTS direct_no_delete BEFORE DELETE ON direct_authorizations BEGIN SELECT RAISE(ABORT, 'immutable direct observation'); END")
-  (direct-issuer client db issuer service product edition key kid trust clock purchasing?))
+  (direct-issuer client db issuer service product edition key kid trust clock purchasing? buyers))
 (define (digest value) (bytes->hex-string (sha256-bytes value)))
 
 (define (authorize-nowpay-direct service request)
@@ -85,7 +87,8 @@
              (write-issued-credential credential encoded)
              (query-exec db "INSERT INTO direct_lineages(scope,revision) VALUES(?,?) ON CONFLICT(scope) DO UPDATE SET revision=excluded.revision" scope revision)
              (hash-set base 'credential (read-json (open-input-bytes (get-output-bytes encoded))))]
-            [(and (equal? decision "PURCHASE_REQUIRED") (direct-issuer-purchasing? service))
+            [(and (equal? decision "PURCHASE_REQUIRED") (direct-issuer-purchasing? service)
+                  (or (not (direct-issuer-buyers service)) (member buyer (direct-issuer-buyers service))))
              (define catalog (nowpay-direct-charge-query (direct-issuer-client service)))
              (if (nowpay-charge-purchasable? catalog)
                  (hash-set (hash-set base 'purchase_url (or (nowpay-access-purchase-url access) 'null))

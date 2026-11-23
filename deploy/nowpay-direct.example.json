@@ -16,5 +16,6 @@
   "permit_private_key_path": "/etc/commerce/keys/permit/private.der",
   "permit_trust_store_path": "/etc/commerce/keys/permit/trust.json",
   "state_path": "/var/lib/commerce-direct/authorizations.sqlite",
-  "purchasing_enabled": false
+  "purchasing_enabled": false,
+  "purchase_buyer_allowlist": []
 }

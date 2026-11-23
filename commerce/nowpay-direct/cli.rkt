@@ -1,5 +1,5 @@
 #lang racket/base
-(require crypto crypto/pem crypto/libcrypto db json permit/json permit/issuer
+(require crypto crypto/pem crypto/libcrypto db json permit/json permit/issuer permit/crypto
          racket/file racket/path racket/port racket/string
          "../nowpay-direct.rkt" "issuer.rkt" "../private/model.rkt" "../private/bounded-stream.rkt")
 (provide run-nowpay-direct-cli!)
@@ -41,6 +41,8 @@
                     'price_minor (hash-ref cfg 'price_minor) 'duration_period "MONTH"))
        (newline) 0]
       [(equal? command "serve")
+       ;; Production signing must never silently fall back to pure Ed25519.
+       (current-ed25519-backend 'native)
        (define raw (read-bounded-stream (current-input-port) 16384 5))
        (unless raw (refuse))
        (define request (read-json-bytes/strict 'nowpay-direct raw))
@@ -57,7 +59,8 @@
            #:private-key (read-ed25519-private-key (config-path cfg 'permit_private_key_path))
            #:key-id (hash-ref cfg 'permit_key_id)
            #:trust-store (read-trust-store (config-path cfg 'permit_trust_store_path))
-           #:purchasing-enabled? (hash-ref cfg 'purchasing_enabled #f)))
+           #:purchasing-enabled? (hash-ref cfg 'purchasing_enabled #f)
+           #:purchase-buyer-allowlist (hash-ref cfg 'purchase_buyer_allowlist #f)))
           (write-json (authorize-nowpay-direct issuer request)) (newline) (flush-output) 0)
         (lambda () (disconnect database)))]
       [else (refuse)])))

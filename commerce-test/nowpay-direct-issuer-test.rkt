@@ -10,11 +10,11 @@
 (define tmp (make-temporary-file "nowpay-issuer-~a" 'directory))
 (define now 1795392000)
 (define request (hasheq 'version 1 'service_id "service_synthetic" 'buyer_id "usr_synthetic" 'nonce (make-string 64 #\a)))
-(define (issuer db #:client [c (client)] #:purchasing? [purchasing? #f])
+(define (issuer db #:client [c (client)] #:purchasing? [purchasing? #f] #:buyers [buyers #f])
   (make-nowpay-direct-issuer #:client c #:database db #:issuer "issuer_synthetic"
    #:service-id "service_synthetic" #:product-id "publy" #:edition "personal"
    #:private-key private #:key-id "fixture" #:trust-store trust
-   #:clock (lambda () now) #:purchasing-enabled? purchasing?))
+   #:clock (lambda () now) #:purchasing-enabled? purchasing? #:purchase-buyer-allowlist buyers))
 (define (claims response)
   (verified-credential-claims (verify-credential (jsexpr->envelope (hash-ref response 'credential)) trust)))
 (dynamic-wind void
@@ -49,5 +49,12 @@
   (define failure (issuer restarted #:client (client #:consult (hash-set allow 'valid_until "2026-01-01 00:00:00"))))
   (check-exn exn:fail:commerce? (lambda () (authorize-nowpay-direct failure (hash-set request 'nonce (make-string 64 #\d)))))
   (check-equal? (query-value restarted "SELECT COUNT(*) FROM direct_authorizations") 3)
+  (define required (hasheq 'code "10000" 'decision "PURCHASE_REQUIRED" 'capability_status "ENABLED"
+     'charging_options (list option) 'purchase_url "https://openapi.alipay.com/purchase"))
+  (define restricted (issuer restarted #:client (client #:consult required) #:purchasing? #t #:buyers '("operator_synthetic")))
+  (define no-entry (authorize-nowpay-direct restricted (hash-set request 'nonce (make-string 64 #\e))))
+  (check-false (hash-has-key? no-entry 'purchase_url))
+  (define entry (authorize-nowpay-direct restricted (hash-set (hash-set request 'buyer_id "operator_synthetic") 'nonce (make-string 64 #\f))))
+  (check-equal? (hash-ref entry 'purchase_url) "https://openapi.alipay.com/purchase")
   (disconnect restarted))
  (lambda () (delete-directory/files tmp)))
