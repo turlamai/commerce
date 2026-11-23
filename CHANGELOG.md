@@ -10,6 +10,8 @@ All notable changes to Commerce are documented here. The format is based on
 
 ### Added
 
+- Pin CI, package-install validation and the Docker build to the same Permit 0.2.1 release candidate used by the isolated production installation.
+
 - Build checksum-verified source-package release archives from committed trees and test installation of those exact archives before publication. Production installation uses copied, versioned packages instead of mutable source links.
 
 
