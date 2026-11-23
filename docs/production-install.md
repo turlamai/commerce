@@ -11,3 +11,5 @@ The package release workflow tests the actual archive, then refuses publication 
 Development source links remain supported for local contributors; they are not the production installation path.
 
 [简体中文](production-install.zh-CN.md)
+
+After installation, run `raco commerce --help` as the service account from a readable working directory. This exercises the installed command registration and executable entrypoint, not just module imports. The reusable CLI also supports the standard Racket module invocation `racket -l commerce/operator/cli -- --help`. Release 0.1.3 fixes collection-level registration missing from earlier multi-collection archives.

@@ -24,6 +24,7 @@ jobs:
           cd "$RUNNER_TEMP/release"
           sha256sum -c SHA256SUMS
           raco pkg install --copy --auto --batch --no-docs --name commerce commerce-*.zip
+          raco commerce --help
           raco test -p commerce
           raco setup --check-pkg-deps commerce
       - uses: actions/upload-artifact@v4

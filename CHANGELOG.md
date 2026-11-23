@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- Register the installed operator command at collection scope, add a thin executable raco entrypoint and verify `raco commerce --help` against the actual release archive. Payment and signing semantics are unchanged.
+
+
 All notable changes to Commerce are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) once a public release is tagged.
