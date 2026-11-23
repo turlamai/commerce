@@ -190,6 +190,7 @@
 ;; usage error. Output is JSON on stdout; module `main` performs the exit.
 (define (run-commerce-cli! arguments)
   (match arguments
+    [(vector "--help") (display (usage)) 0]
     [(vector "nowpay" configuration command)
      ((dynamic-require 'commerce/nowpay-direct/cli 'run-nowpay-direct-cli!) configuration command)]
     [(vector "doctor" database)

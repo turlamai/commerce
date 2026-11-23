@@ -9,3 +9,5 @@
 发布流程安装并测试实际源码归档，并要求标签版本匹配且同一提交的 main CI 全绿。库发布不代表商户准入、支付开通或产品实机验收；既有商业和安全门禁继续生效。本地贡献者仍可使用源码链接。
 
 [English](production-install.md)
+
+安装后，以服务账户从可读的工作目录运行 `raco commerce --help`，实际验证命令注册和执行入口，而不只验证模块导入。可复用 CLI 也支持 Racket 标准模块入口 `racket -l commerce/operator/cli -- --help`。0.1.3 修复此前多集合归档缺失的集合级命令注册。

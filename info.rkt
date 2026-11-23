@@ -14,12 +14,10 @@
 (define build-deps '("rackunit-lib" "racket-doc" "scribble-lib"))
 (define pkg-desc
   "Provider-neutral commerce orchestration for independent software")
-(define version "0.1.2")
+(define version "0.1.3")
 (define pkg-authors '(turlamai))
 (define license 'Apache-2.0)
-(define raco-commands
-  '(("commerce" "commerce/operator/cli.rkt"
-     "Commerce operator tools (find, explain, redrive)" "50")))
+
 
 
 ;; Deployment references and review governance are part of the installed source
