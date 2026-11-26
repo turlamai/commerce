@@ -11,6 +11,9 @@ All notable changes to Commerce are documented here. The format is based on
 
 ## Unreleased
 
+- Guard the public Permit dependency boundary in package tests; Commerce
+  library sources must not import Permit private modules (#61).
+
 ## [0.1.2] - 2026-11-23
 
 ### Added

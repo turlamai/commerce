@@ -105,3 +105,16 @@
                     (build-path repository-root "CONTRIBUTING.md"))
                    ".github/PULL_REQUEST_TEMPLATE.md")
  "contribution instructions must link the PR handoff template")
+
+;; Commerce may depend on Permit's documented public modules, but never on
+;; its private implementation paths. Scan library sources (including nested
+;; provider adapters) so a future adapter cannot silently reintroduce #61.
+(for ([source (in-list (find-files
+                        (lambda (path)
+                          (and (file-exists? path)
+                               (equal? (path-get-extension path) #".rkt")))
+                        (build-path repository-root "commerce")))])
+  (check-false
+   (string-contains? (file->string source) "permit/private/")
+   (format "~a must use public Permit modules"
+           (find-relative-path repository-root source))))
