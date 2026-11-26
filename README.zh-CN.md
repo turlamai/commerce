@@ -193,7 +193,7 @@ Commerce 只保存确定性编排需要的标识、投影和审计证据。
 ## 支付宝 Vibe Pay（待验收接入）
 
 **Publy 的服务端结账试验接口（Commerce #51）：** 新增可选的
-`commerce/alipay/checkout-coordinator` 与 `commerce/alipay/checkout-http`，
+`commerce/alipay/checkout-coordinator` 与 `commerce/alipay/page-pay-http`，
 只接受经过服务间认证、带持久化防重放 nonce 的请求，由 Commerce 侧确定
 经审阅的 Offer 和 CNY 精确价格。相同请求安全重试复用同一不可变订单，
 返回的是支付宝签名参数，**不是已付款或已获得 Permit 权益**的证明。
@@ -333,3 +333,5 @@ raco setup --check-pkg-deps commerce
 Apache-2.0，见 [LICENSE](LICENSE)。
 
 回调 servlet 接受标准 HTTP `POST`；回环 HTTP 回归覆盖验签门禁与重复通知幂等。
+
+原 `commerce/alipay/checkout-http` 模块路径仍兼容，转发至 `commerce/alipay/page-pay-http`。
