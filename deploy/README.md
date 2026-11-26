@@ -146,3 +146,14 @@ exist inside the container (mount them read-only, e.g.
    `/webhooks/pancake`.
 4. Rehearse key rotation (`docs/runbook.md`).
 5. Ship the `commerce` log topic as JSON lines.
+
+## Alipay service templates
+
+The [callback template](alipay.env.example) and [hosted checkout template](checkout.env.example)
+are intentionally separate, self-contained sandbox examples. Shared merchant identity,
+key-path placeholder, admission record and ledger defaults must agree; package tests
+check this invariant. Return URLs and service-only credentials remain role-specific.
+Do not source both files into one process or grant one service access to the other's
+credentials merely because placeholders match. The example port is not a shared-listener
+configuration: assign distinct ports if both services run on one host. Review each
+role's actual secret needs and the release gates before production.

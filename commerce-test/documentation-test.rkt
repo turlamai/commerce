@@ -118,3 +118,26 @@
    (string-contains? (file->string source) "permit/private/")
    (format "~a must use public Permit modules"
            (find-relative-path repository-root source))))
+
+;; The callback and checkout examples are independent, least-privilege
+;; service configurations. Keep shared merchant identity and ledger defaults
+;; synchronized without making either service load the other's secrets.
+(define (example-env name)
+  (define entries (make-hash))
+  (for ([line (in-list (file->lines (build-path repository-root "deploy" name)))])
+    (define match (regexp-match #px"^([A-Z][A-Z0-9_]*)=(.*)$" line))
+    (when match
+      (define key (cadr match))
+      (check-false (hash-has-key? entries key) (format "~a repeats ~a" name key))
+      (hash-set! entries key (caddr match))))
+  entries)
+(define callback-env (example-env "alipay.env.example"))
+(define checkout-env (example-env "checkout.env.example"))
+(for ([key '("ALIPAY_ENV" "ALIPAY_APP_ID" "ALIPAY_SELLER_ID"
+             "ALIPAY_PRIVATE_KEY_PATH" "ALIPAY_NOTIFY_URL"
+             "COMMERCE_PROVIDER_ADMISSION_PATH" "COMMERCE_DATABASE_PATH")])
+  (check-equal? (hash-ref callback-env key) (hash-ref checkout-env key)
+                (format "Alipay templates disagree on shared default ~a" key)))
+(check-equal? (hash-ref callback-env "ALIPAY_ENV") "sandbox")
+(check-false (hash-has-key? callback-env "COMMERCE_SERVICE_HMAC_PATH"))
+(check-false (hash-has-key? checkout-env "PERMIT_PRIVATE_KEY_PATH"))

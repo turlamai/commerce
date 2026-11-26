@@ -4,7 +4,8 @@
          crypto crypto/libcrypto
          commerce commerce/admission commerce/hosted-auth
          commerce/hosted-replay/sqlite
-         commerce/alipay/checkout-http commerce/alipay/checkout-idempotency
+         commerce/alipay/page-pay-http commerce/alipay/checkout-idempotency
+         (prefix-in legacy: commerce/alipay/checkout-http)
          commerce/storage commerce/storage/sqlite)
 
 (test-case "authenticated service checkout uses only server-selected price and stable order"
@@ -107,3 +108,8 @@
                       "account-a"))
       (lambda () (storage-close store))))
    (lambda () (delete-directory/files dir))))
+
+(test-case "legacy checkout module preserves binding identity"
+  (check-eq? legacy:make-alipay-checkout-http-endpoint make-alipay-checkout-http-endpoint)
+  (check-eq? legacy:handle-alipay-checkout-http-post handle-alipay-checkout-http-post)
+  (check-eq? legacy:serve-alipay-checkout-http-endpoint serve-alipay-checkout-http-endpoint))
