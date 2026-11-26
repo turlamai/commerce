@@ -42,3 +42,11 @@ successful unit test, simulated loopback response or green CI matrix does not
 satisfy human merchant approval, payment verification, signer isolation,
 payout/settlement or the release gates in `docs/release-checklist.md`.
 One-time prepaid entitlement periods **do not renew automatically**.
+
+## Module ownership
+
+`commerce/alipay/page-pay-http` is the development-only injected-policy
+loopback transport described here. `commerce/alipay/checkout-http` remains
+an identical compatibility re-export. The separate `commerce/checkout-http`
+entry point is the configured hosted checkout edge; the two are not intended
+to run on the same listener. No route, authorization, or launch gate changes.
