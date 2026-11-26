@@ -11,6 +11,10 @@ All notable changes to Commerce are documented here. The format is based on
 
 ## Unreleased
 
+- Name the development Alipay page-pay transport `commerce/alipay/page-pay-http`;
+  the previous module path remains a compatibility re-export with identical
+  bindings. No checkout, authentication or deployment behavior changes (#61).
+
 - Guard the public Permit dependency boundary in package tests; Commerce
   library sources must not import Permit private modules (#61).
 
