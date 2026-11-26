@@ -214,7 +214,7 @@ perform any necessary migration through the reviewed service runbook.
 
 **Publy checkout development boundary (Commerce #51):** the optional
 `commerce/alipay/checkout-coordinator` and
-`commerce/alipay/checkout-http` modules accept an authenticated
+`commerce/alipay/page-pay-http` modules accept an authenticated
 service-to-service request with a durable one-time nonce, resolve the
 reviewed Offer and exact CNY price on the Commerce server, and return
 signed page-pay parameters for the same immutable order on safe retry.
@@ -389,3 +389,5 @@ normative document update.
 Apache-2.0. See [LICENSE](LICENSE).
 
 The callback servlet accepts standard HTTP `POST`; a loopback HTTP regression verifies authentication and idempotent retries.
+
+The former `commerce/alipay/checkout-http` module path remains a compatibility re-export of `commerce/alipay/page-pay-http`.
