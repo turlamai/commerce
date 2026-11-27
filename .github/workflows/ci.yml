@@ -134,3 +134,28 @@ jobs:
             echo "Unexpected acceptance of inaccessible shared database directory"
             exit 1
           fi
+
+  permit-release-compatibility:
+    # Qualify the exact published archive without changing the deployed pin.
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Bogdanp/setup-racket@2466913449df77df2bad149d1f2fc4e1ea4795dd # v1.15
+        with:
+          version: "9.3"
+      - name: Download and verify Permit v0.2.2 source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/permit-release"
+          cd "$RUNNER_TEMP/permit-release"
+          curl --fail --location --retry 3 --output permit-0.2.2.zip https://github.com/turlamai/permit/releases/download/v0.2.2/permit-0.2.2.zip
+          echo '18421486146025d868e73caddcf7ad6f69aa3dfe967d7d8113fe4e37ee643639  permit-0.2.2.zip' | sha256sum -c -
+          raco pkg install --copy --auto --batch --no-docs --name permit permit-0.2.2.zip
+      - name: Test Commerce with the verified release
+        shell: bash
+        run: |
+          raco pkg install --auto --batch --no-docs --name commerce "$GITHUB_WORKSPACE"
+          raco test -p commerce
+          raco setup --check-pkg-deps commerce
