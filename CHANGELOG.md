@@ -11,6 +11,9 @@ All notable changes to Commerce are documented here. The format is based on
 
 ## Unreleased
 
+- Add split-role filesystem permission preflight and positive/negative Linux CI coverage; actual deployed signer isolation remains a separate gate.
+- Verify the published Permit v0.2.2 archive by pinned SHA-256 and qualify its exact release commit in the CI matrix, package-release validation and Docker candidate build. The minimum supported Permit version and live deployment are unchanged.
+
 - Name the development Alipay page-pay transport `commerce/alipay/page-pay-http`;
   the previous module path remains a compatibility re-export with identical
   bindings. No checkout, authentication or deployment behavior changes (#61).
