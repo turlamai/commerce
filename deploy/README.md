@@ -86,6 +86,25 @@ trusts. Until a separately authenticated signing-intent channel or strict
 database writer boundary is implemented and tested, this is only partial
 key isolation, not full production issuance authorization security.
 
+### Read-only deployment permission preflight
+
+Run on the provisioned Linux host as root, with actual private-key paths and
+shared database directory (the tool never reads key contents):
+
+```bash
+sudo bash deploy/check-split-permissions.sh \
+  /etc/commerce-secrets/issuer/permit-private.pem \
+  /etc/commerce-secrets/edge/pancake-merchant.pem /var/lib/commerce
+```
+
+The preflight checks distinct non-root identities, regular non-symlink key
+files owned by their respective users with mode 0600, effective cross-role
+read denial, and shared-directory access. A failure exits nonzero. This is
+only a filesystem snapshot, not a check of effective systemd sandboxing,
+additional credentials, live sockets, SQLite recovery or signing evidence.
+Never record key material; retain the redacted PASS/FAIL output privately.
+The shared writable database is still a trust-boundary limitation.
+
 The original combined unit remains available for a single-process local
 walkthrough only:
 
