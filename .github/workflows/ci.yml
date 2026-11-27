@@ -103,3 +103,34 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build service without live secrets
         run: docker build --pull -t commerce-ci -f deploy/Dockerfile .
+
+  split-permissions-preflight:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Exercise permission gate using disposable identities and dummy files
+        run: |
+          set -euo pipefail
+          bash -n deploy/check-split-permissions.sh
+          sudo groupadd --system commerce-shared
+          sudo useradd --system --gid commerce-shared --shell /usr/sbin/nologin commerce-edge
+          sudo useradd --system --gid commerce-shared --shell /usr/sbin/nologin commerce-issuer
+          work=$(mktemp -d)
+          trap 'sudo rm -rf -- "$work"' EXIT
+          chmod 755 "$work"
+          sudo install -o commerce-issuer -g commerce-shared -m 0600 /dev/null "$work/issuer"
+          sudo install -o commerce-edge -g commerce-shared -m 0600 /dev/null "$work/edge"
+          sudo install -d -o commerce-edge -g commerce-shared -m 2770 "$work/db"
+          sudo bash deploy/check-split-permissions.sh "$work/issuer" "$work/edge" "$work/db"
+          sudo chmod 0640 "$work/issuer"
+          if sudo bash deploy/check-split-permissions.sh "$work/issuer" "$work/edge" "$work/db"; then
+            echo "Unexpected acceptance of readable issuer key"
+            exit 1
+          fi
+          sudo chmod 0600 "$work/issuer"
+          sudo chmod 2750 "$work/db"
+          if sudo bash deploy/check-split-permissions.sh "$work/issuer" "$work/edge" "$work/db"; then
+            echo "Unexpected acceptance of inaccessible shared database directory"
+            exit 1
+          fi
