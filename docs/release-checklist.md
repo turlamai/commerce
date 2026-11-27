@@ -11,6 +11,11 @@ This is the single place to record *release evidence requirements*, not a duplic
 - [ ] Review user-facing change notes, English/Chinese quick starts, API/CLI examples, migration compatibility and package-install instructions. Confirm each command from a clean checkout.
 - [ ] Rehearse deployment from a pinned artifact and a tested rollback; identify the owner who can stop a rollout. Record where evidence is kept **without** embedding private data in Git.
 
+The separate `permit-release-compatibility` CI lane installs the published Permit
+v0.2.2 ZIP with a pinned SHA-256 and runs Commerce package tests and dependency
+validation. It is candidate compatibility evidence only; the existing deployed
+Permit source pin and Docker build remain unchanged until separately qualified.
+
 ## 2. Signer and customer-rights boundary — deployment gate
 
 - [ ] Verify separate OS identities, actual filesystem permissions and key-purpose segregation; the HTTP edge cannot read Permit private keys.
