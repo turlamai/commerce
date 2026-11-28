@@ -1,15 +1,14 @@
 # Changelog
 
-## 0.1.3
-
-- Register the installed operator command at collection scope, add a thin executable raco entrypoint and verify `raco commerce --help` against the actual release archive. Payment and signing semantics are unchanged.
-
-
 All notable changes to Commerce are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/) once a public release is tagged.
 
 ## Unreleased
+
+## [0.1.4] - 2026-11-28
+
+- Align family integration documentation with the implemented provider-specific NowPay Direct authorization path; the generic hosted entitlement read remains a proposal.
 
 - Add split-role filesystem permission preflight and positive/negative Linux CI coverage; actual deployed signer isolation remains a separate gate.
 - Verify the published Permit v0.2.2 archive by pinned SHA-256 and qualify its exact release commit in the CI matrix, package-release validation and Docker candidate build. The minimum supported Permit version and live deployment are unchanged.
@@ -20,6 +19,10 @@ All notable changes to Commerce are documented here. The format is based on
 
 - Guard the public Permit dependency boundary in package tests; Commerce
   library sources must not import Permit private modules (#61).
+
+## [0.1.3]
+
+- Register the installed operator command at collection scope, add a thin executable raco entrypoint and verify `raco commerce --help` against the actual release archive. Payment and signing semantics are unchanged.
 
 ## [0.1.2] - 2026-11-23
 
