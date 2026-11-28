@@ -29,13 +29,13 @@ jobs:
       - uses: Bogdanp/setup-racket@2466913449df77df2bad149d1f2fc4e1ea4795dd # v1.15
         with:
           version: ${{ matrix.racket-version }}
-      # Deployment-tested Permit source, not a floating main.
+      # Release-candidate Permit source, not a floating main. Production deployment acceptance is separate.
       - name: Checkout pinned Permit source
         shell: bash
         run: |
           git clone --no-checkout https://github.com/turlamai/permit.git "$RUNNER_TEMP/permit-src"
-          git -C "$RUNNER_TEMP/permit-src" checkout --detach bba48fd460de6602d1d62afe7644c0ebd2dd62e6
-          test "$(git -C "$RUNNER_TEMP/permit-src" rev-parse HEAD)" = "bba48fd460de6602d1d62afe7644c0ebd2dd62e6"
+          git -C "$RUNNER_TEMP/permit-src" checkout --detach a8620563a3ac8841895865c225037777a252a275
+          test "$(git -C "$RUNNER_TEMP/permit-src" rev-parse HEAD)" = "a8620563a3ac8841895865c225037777a252a275"
       - name: Install pinned Permit package
         shell: bash
         run: raco pkg install --copy --auto --no-docs --name permit "$RUNNER_TEMP/permit-src"
@@ -54,13 +54,13 @@ jobs:
       - uses: Bogdanp/setup-racket@2466913449df77df2bad149d1f2fc4e1ea4795dd # v1.15
         with:
           version: "9.3"
-      # Deployment-tested Permit source, not a floating main.
+      # Release-candidate Permit source, not a floating main. Production deployment acceptance is separate.
       - name: Checkout pinned Permit source
         shell: bash
         run: |
           git clone --no-checkout https://github.com/turlamai/permit.git "$RUNNER_TEMP/permit-src"
-          git -C "$RUNNER_TEMP/permit-src" checkout --detach bba48fd460de6602d1d62afe7644c0ebd2dd62e6
-          test "$(git -C "$RUNNER_TEMP/permit-src" rev-parse HEAD)" = "bba48fd460de6602d1d62afe7644c0ebd2dd62e6"
+          git -C "$RUNNER_TEMP/permit-src" checkout --detach a8620563a3ac8841895865c225037777a252a275
+          test "$(git -C "$RUNNER_TEMP/permit-src" rev-parse HEAD)" = "a8620563a3ac8841895865c225037777a252a275"
       - name: Install pinned Permit package
         shell: bash
         run: raco pkg install --copy --auto --no-docs --name permit "$RUNNER_TEMP/permit-src"

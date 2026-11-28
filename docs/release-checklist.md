@@ -13,8 +13,10 @@ This is the single place to record *release evidence requirements*, not a duplic
 
 The separate `permit-release-compatibility` CI lane installs the published Permit
 v0.2.2 ZIP with a pinned SHA-256 and runs Commerce package tests and dependency
-validation. It is candidate compatibility evidence only; the existing deployed
-Permit source pin and Docker build remain unchanged until separately qualified.
+validation. CI, source-package validation and the Docker build now use the
+v0.2.2 release commit `a8620563a3ac8841895865c225037777a252a275` as a candidate pin.
+This does not change any running deployment or establish production acceptance;
+record the previous deployed image and dependency pin before any rollout.
 
 ## 2. Signer and customer-rights boundary — deployment gate
 

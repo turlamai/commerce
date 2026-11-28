@@ -15,7 +15,7 @@ jobs:
         with:
           version: '9.3'
       - name: Install the CI-pinned Permit dependency
-        run: raco pkg install --auto --batch --no-docs --name permit https://github.com/turlamai/permit.git#bba48fd460de6602d1d62afe7644c0ebd2dd62e6
+        run: raco pkg install --auto --batch --no-docs --name permit https://github.com/turlamai/permit.git#a8620563a3ac8841895865c225037777a252a275
       - name: Build committed source archive
         run: bash scripts/package-release.sh "$RUNNER_TEMP/release"
       - name: Verify and install the archive, never a source link
