@@ -3,14 +3,22 @@ on:
   pull_request:
   push:
     tags: ['v*']
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 permissions:
   contents: read
 jobs:
   package:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
       - uses: Bogdanp/setup-racket@v1.14
         with:
           version: '9.3'
@@ -32,28 +40,79 @@ jobs:
           name: commerce-release
           path: ${{ runner.temp }}/release/*
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_run'
     needs: package
     runs-on: ubuntu-latest
+    concurrency:
+      group: commerce-release-publication
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: commerce-release
           path: release
-      - name: Require matching version and successful main CI
+      - name: Verify archive and publication eligibility
+        id: candidate
         env:
           GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         shell: bash
         run: |
+          set -euo pipefail
+          (cd release && sha256sum -c SHA256SUMS)
           version="$(jq -r .version release/release.json)"
-          test "$GITHUB_REF_NAME" = "v$version"
-          test "$(jq -r .source_commit release/release.json)" = "$GITHUB_SHA"
-          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push" --jq '.workflow_runs | any(.head_branch == "main" and .conclusion == "success")' | grep -qx true
+          tag="v$version"
+          test "$(jq -r .source_commit release/release.json)" = "$CANDIDATE_SHA"
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$CANDIDATE_SHA&event=push" --jq '.workflow_runs | any(.head_branch == "main" and .conclusion == "success")' | grep -qx true
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            test "$GITHUB_REF_NAME" = "$tag"
+          else
+            if [ "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)" != "$CANDIDATE_SHA" ]; then
+              echo "Stale main candidate; skip"
+              exit 0
+            fi
+          fi
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          if [ "$latest" = "$tag" ]; then
+            echo "Already published; no changes"
+            exit 0
+          fi
+          python3 - "$latest" "$tag" <<'PY'
+          import re, sys
+          def parts(s):
+              if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", s):
+                  raise SystemExit("Unexpected version")
+              return tuple(map(int, s[1:].split(".")))
+          if parts(sys.argv[2]) <= parts(sys.argv[1]):
+              raise SystemExit("Refusing non-increasing version")
+          PY
+          grep -Fq "## [$version] -" CHANGELOG.md
           printf '%s\n' 'Versioned Racket source package. Verify SHA256SUMS before installation. Library release only; merchant approval and deployed payment acceptance remain separate gates.' > release-notes.md
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - name: Publish immutable version assets
+        if: steps.candidate.outputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "commerce ${{ github.ref_name }}" --notes-file release-notes.md release/*
+          TAG: ${{ steps.candidate.outputs.tag }}
+          CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)" = "$CANDIDATE_SHA"
+          fi
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            test "$(git rev-list -n 1 "$TAG")" = "$CANDIDATE_SHA"
+            gh release create "$TAG" --verify-tag --title "commerce $TAG" --notes-file release-notes.md release/*
+          else
+            test "$GITHUB_EVENT_NAME" = workflow_run
+            gh release create "$TAG" --target "$CANDIDATE_SHA" --title "commerce $TAG" --notes-file release-notes.md release/*
+          fi
