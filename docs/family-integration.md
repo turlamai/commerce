@@ -42,8 +42,10 @@ payload plus immutable exact bytes; that module itself does not call the signer.
 The explicit `commerce/issuer` worker **does** sign via `permit/issuer`,
 persist a validated lineage revision and issue a one-time claim using the
 storage/outbox boundary. The claim portal is implemented in `commerce/server`.
-A product-scoped *current hosted entitlement* read API is **not** implemented;
-see the [proposed bridge](decisions/0021-hosted-service-entitlement-bridge-proposal.md).
+A provider-neutral *current hosted entitlement* read API over the payment
+journal is **not** implemented; see the
+[proposed bridge](decisions/0021-hosted-service-entitlement-bridge-proposal.md).
+The separate NowPay Direct current-access path is implemented as described below.
 
 ## Product composition
 
@@ -66,14 +68,27 @@ workflow evidence, never permission to unlock a feature.
 
 ## Hosted-product integration (pilot; not production)
 
-A hosted product with quota-gated jobs (Publy is the first candidate) still
-needs a scoped server-to-server current-entitlement read. The existing
-one-time claim portal returns signed Permit evidence, but it is not a
+A hosted product with quota-gated jobs needs fresh scoped authorization.
+The one-time claim portal returns signed Permit evidence, but it is not a
 current-status service and must not be used as a shortcut for authorization.
-See [ADR-0021 (proposal)](decisions/0021-hosted-service-entitlement-bridge-proposal.md)
-for the missing interface, trust boundaries, fail-closed behavior, and
-acceptance. Until implemented and deployed, do not advertise Commerce-based
-hosted authorization, or treat local Publy payment records as Commerce facts.
+[ADR-0021 (proposal)](decisions/0021-hosted-service-entitlement-bridge-proposal.md)
+remains the proposed provider-neutral payment-journal read model.
+
+[ADR-0027](decisions/0027-nowpay-direct-duration.md) defines the separate,
+implemented NowPay Direct path for the initial monthly offer. The product
+backend sends its authenticated stable buyer ID and request nonce to an
+isolated issuer over the local socket/stdio interface. The issuer obtains
+provider-authenticated current access directly, maintains private lineage and
+observation state, and returns nonce-bound signed Permit evidence for ALLOW.
+The product independently verifies the credential, request bindings and
+freshness at admission and execution, and owns quota enforcement. A provider
+ALLOW is not a canonical payment event or settlement proof.
+
+This is a provider-specific implementation, not an implemented ADR-0021
+HTTP API. Production OS isolation, merchant eligibility and actual purchase,
+expiry, refund and recovery evidence remain release gates. Do not treat
+local Publy payment records or cached credentials as authoritative current
+access, and do not advertise live acceptance from fixture tests.
 
 ## Change flow
 
