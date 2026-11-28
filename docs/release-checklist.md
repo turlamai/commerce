@@ -18,6 +18,13 @@ v0.2.2 release commit `a8620563a3ac8841895865c225037777a252a275` as a candidate 
 This does not change any running deployment or establish production acceptance;
 record the previous deployed image and dependency pin before any rollout.
 
+The library release workflow follows a successful main push CI run, builds and
+installs the committed source archive in a read-only job, and checks its
+checksums, exact source SHA, current main head and increasing version before
+publishing in a separate contents-write job. Existing releases are not
+replaced. Manual version tags retain the same checks. This publishes a library
+artifact only, never a deployment or merchant activation.
+
 ## 2. Signer and customer-rights boundary — deployment gate
 
 - [ ] Verify separate OS identities, actual filesystem permissions and key-purpose segregation; the HTTP edge cannot read Permit private keys.
